@@ -1,0 +1,30 @@
+.kpi-card {
+  color: white;
+  padding: 1.8rem;
+  border-radius: 1.5rem;
+  box-shadow: 0 15px 30px rgba(0,0,0,.15);
+  transform: translateY(20px);
+  opacity: 0;
+  animation: fadeUp .6s ease forwards;
+}
+.kpi-card:nth-child(2){animation-delay:.1s}
+.kpi-card:nth-child(3){animation-delay:.2s}
+.kpi-card:nth-child(4){animation-delay:.3s}
+
+.kpi-card p {
+  font-size: .85rem;
+  opacity: .85;
+}
+.kpi-card h3 {
+  font-size: 2.8rem;
+  font-weight: 700;
+  margin-top: .5rem;
+}
+.kpi-icon {
+  font-size: 1.8rem;
+  margin-bottom: .6rem;
+}
+
+@keyframes fadeUp {
+  to { opacity:1; transform:translateY(0) }
+}
