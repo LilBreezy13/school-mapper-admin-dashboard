@@ -1,2063 +1,399 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>School Mapper – Admin</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Field Marketer | School Locator</title>
 
-<!-- Tailwind -->
-<script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-<style>
+  <!-- Google Maps (REPLACE KEY LATER) -->
+ <script
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAyCAW4xYWromZksn2756co9nxAftX1zx8&libraries=places,geometry">
+</script>
+
+</head>
+
+<body class="bg-slate-100 text-slate-800">
+
+<!-- HEADER -->
+<header class="sticky top-0 bg-white shadow z-20">
+  <div class="p-4 flex items-center justify-between">
+    <h1 class="font-semibold text-lg">📍 School Locator</h1>
+    <span class="text-xs text-slate-500">Field Marketer</span>
+  </div>
+
+  <!-- FILTERS -->
+  <div class="p-3 grid grid-cols-2 gap-2 text-sm">
+    <input id="searchInput" placeholder="Search school or location"
+      class="border rounded-lg px-3 py-2 col-span-2">
+
+    <select id="regionFilter" class="border rounded-lg px-3 py-2">
+      <option value="">All Regions</option>
+      <option>Greater Accra</option>
+      <option>Ashanti</option>
+      <option>Central</option>
+      <option>Western</option>
+      <option>Eastern</option>
+      <option>Volta</option>
+      <option>Oti</option>
+      <option>Northern</option>
+    </select>
+
+    <select id="examFilter" class="border rounded-lg px-3 py-2">
+      <option value="">All Exams</option>
+      <option value="mock">Has Mock</option>
+      <option value="terminal">Has Terminal</option>
+    </select>
+  </div>
+</header>
+
+<!-- MAP -->
+<div id="map" class="h-[70vh] w-full"></div>
+
+
+<!-- SCHOOL LIST -->
+<section id="schoolList" class="p-4 space-y-3"></section>
+
+<!-- MODAL -->
+<div id="schoolModal" class="fixed inset-0 bg-black/40 hidden z-30">
+  <div class="absolute bottom-0 w-full bg-white rounded-t-2xl p-5 max-h-[85vh] overflow-y-auto">
+
+  <div class="space-y-4">
+
+  <div class="flex justify-between items-center">
+    <div>
+      <h2 id="mName" class="text-xl font-bold"></h2>
+      <p class="text-xs text-slate-500">
+        <span id="mLocation"></span> • <span id="mRegion"></span>
+      </p>
+    </div>
+    <button onclick="closeModal()" class="text-slate-400 hover:text-red-500">
+      ✕
+    </button>
+  </div>
+
+  <div class="grid grid-cols-2 gap-3 text-sm">
+    <div class="bg-slate-100 p-3 rounded-lg">
+      <p class="text-xs text-slate-500">Longevity</p>
+      <p class="font-semibold" id="mLongevity"></p>
+    </div>
+
+    <div class="bg-slate-100 p-3 rounded-lg">
+      <p class="text-xs text-slate-500">Contact</p>
+      <p class="font-semibold" id="mContact"></p>
+    </div>
+  </div>
+
+  <div>
+    <h3 class="font-semibold mb-2">📘 Mock Exams</h3>
+    <ul id="mMocks" class="text-sm space-y-1"></ul>
+  </div>
+
+  <div>
+    <h3 class="font-semibold mb-2">📗 Terminal Exams</h3>
+    <ul id="mTerminals" class="text-sm space-y-1"></ul>
+  </div>
+
+</div>
+
+
+  </div>
+</div>
+
+<script>
 /* =====================================================
-   GLOBAL BASE
+   SAMPLE DATA (MATCHES DASHBOARD)
+   REPLACE WITH FIREBASE onSnapshot() LATER
 ===================================================== */
-/* ===============================
-   GLOBAL THEME VARIABLES
-================================ */
-:root {
-  --bg-main: #f8fafc;
-  --bg-card: #ffffff;
-  --bg-soft: #f1f5f9;
-  --text-main: #0f172a;
-  --text-muted: #64748b;
-  --border-color: #e5e7eb;
-  --hover-row: #eef2ff;
-  --hover-bg: #f1f5ff;
-  --accent: #2563eb;
-  --accent-soft: #edf3ff;
-}
 
-:root {
-  --reg-accra: #2563eb;
-  --reg-ashanti: #16a34a;
-  --reg-central: #f59e0b;
-  --reg-volta: #8b5cf6;
-  --reg-oti: #ec4899;
-  --reg-western: #06b6d4;
-}
-
-
-[data-theme="dark"] {
-  --bg-main: #000208;
-  --bg-card: #000000;
-  --bg-soft: #000000;
-  --text-main: #e5e7eb;
-  --text-muted: #94a3b8;
-  --border-color: #1e293b;
-  --hover-row: rgba(148,163,184,.12);
-   --hover-bg: #111827;
-  --accent: #60a5fa;
-  --accent-soft: rgba(96,165,250,0.15);
-}
-
-/* ===============================
-   FORCE APPLY (TAILWIND OVERRIDE)
-================================ */
-html, body, main {
-  background: var(--bg-main) !important;
-  color: var(--text-main);
-}
-
-/* Sidebar */
-aside {
-  background: var(--bg-card) !important;
-  border-color: var(--border-color);
-}
-
-/* Cards, KPI, Charts */
-.glass,
-.kpi,
-.card,
-.chart,
-.modalBox,
-.profileCard {
-  background: var(--bg-card) !important;
-  color: var(--text-main);
-  border-color: var(--border-color);
-}
-
-/* KPI text fix */
-.kpi h4 {
-  color: var(--text-muted);
-}
-
-/* Tables */
-table,
-thead,
-tbody {
-  background: var(--bg-card) !important;
-  color: var(--text-main);
-}
-
-tbody tr:hover {
-  background: var(--hover-row) !important;
-}
-
-/* AI Chat */
-#aiChatLog {
-  background: var(--bg-soft) !important;
-  color: var(--text-main);
-}
-
-/* Inputs */
-input,
-select {
-  background: var(--bg-card) !important;
-  color: var(--text-main);
-  border-color: var(--border-color);
-}
-
-/* Muted text */
-.text-gray-400,
-.text-gray-500,
-.text-gray-600 {
-  color: var(--text-muted) !important;
-}
-
-
-/* Page visibility system */
-.page{ display:none }
-.page.active{ display:block }
-
-/* =====================================================
-   SIDEBAR
-===================================================== */
-aside{
-  background:#FFFFFF;
-  border-right:1px solid #E6ECF5;
-}
-
-.nav{
-  padding:.75rem 1rem;
-  border-radius:.75rem;
-  cursor:pointer;
-  color:#334155;
-  transition:.2s ease;
-}
-
-.nav:hover{ background:#F1F5FF }
-
-.nav.active{
-  background:#EDF3FF;
-  color:#2563EB;
-  font-weight:600;
-}
+let schools = [
+  {
+    id: "sch_001",
+    name: "Alpha Academy",
+    region: "Greater Accra",
+    location: "Madina",
+    lat: 5.669,
+    lng: -0.167,
+    contact: "024000111",
+    addedAt: "2021-01-01",
+    mocks: [{ name: "Mock 1", enrollment: 120 }],
+    terminals: [{ name: "Terminal 1", enrollment: 130 }],
+    onboarded: true
+  }
+];
 
 /* =====================================================
-   CARD SYSTEM
+   DOM ELEMENTS
 ===================================================== */
-.card,
-.glass{
-  background:#FFFFFF;
-  border:1px solid #DCE5F2;
-  border-radius:12px;
-  transition:border-color .2s ease;
+
+const schoolList   = document.getElementById("schoolList");
+const searchInput  = document.getElementById("searchInput");
+const regionFilter = document.getElementById("regionFilter");
+const examFilter   = document.getElementById("examFilter");
+
+const schoolModal = document.getElementById("schoolModal");
+const mName = document.getElementById("mName");
+const mRegion = document.getElementById("mRegion");
+const mLocation = document.getElementById("mLocation");
+const mLongevity = document.getElementById("mLongevity");
+const mContact = document.getElementById("mContact");
+const mMocks = document.getElementById("mMocks");
+const mTerminals = document.getElementById("mTerminals");
+
+/* =====================================================
+   HELPERS
+===================================================== */
+
+function yearsOld(date) {
+  if (!date) return "—";
+  return Math.floor(
+    (Date.now() - new Date(date)) / (1000 * 60 * 60 * 24 * 365)
+  ) + " yrs";
 }
 
-.card:hover,
-.glass:hover{
-  border-color:#BFD4FF;
+/* =====================================================
+   GOOGLE MAP + LOCATION
+===================================================== */
+
+let map;
+let markers = [];
+let userLocation = null;
+const MATCH_RADIUS = 120; // meters
+
+function getUserLocation() {
+  if (!navigator.geolocation) {
+    alert("Geolocation not supported");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      userLocation = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude
+      };
+      initMap();
+      findNearbySchools();
+    },
+    () => alert("Location access denied. Enable GPS."),
+    { enableHighAccuracy: true }
+  );
 }
 
-/* ===============================
-   DASHBOARD CHART TEXT FIX
-================================ */
+function initMap() {
+  map = new google.maps.Map(document.getElementById("map"), {
+    center: userLocation || { lat: 5.6037, lng: -0.187 },
+    zoom: userLocation ? 15 : 7
+  });
 
-/* Chart titles */
-.glass h3 {
-  color: var(--text-main);
+  if (userLocation) {
+    new google.maps.Marker({
+      position: userLocation,
+      map,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 8,
+        fillColor: "#2563EB",
+        fillOpacity: 1,
+        strokeWeight: 2,
+        strokeColor: "#fff"
+      },
+      title: "Your Location"
+    });
+  }
 }
 
-/* SVG charts text (if any labels exist later) */
-svg text {
-  fill: var(--text-main);
-}
 
-/* Chart container */
-.chart {
-  color: var(--text-main);
+function renderFilteredMapMarkers(filteredSchools) {
+  clearMarkers();
+
+  filteredSchools.forEach(s => {
+    if (!s.lat || !s.lng) return;
+
+    const marker = new google.maps.Marker({
+      position: { lat: s.lat, lng: s.lng },
+      map,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 7,
+        fillColor: s.onboarded ? "green" : "red",
+        fillOpacity: 1,
+        strokeWeight: 1
+      }
+    });
+
+    marker.addListener("click", () => openModal(s));
+    markers.push(marker);
+  });
 }
 
 
 /* =====================================================
-   KPI CARDS
+   NEARBY SCHOOLS (GOOGLE PLACES)
 ===================================================== */
-.kpi{
-  padding:1.2rem 1.4rem;
-  display:flex;
-  flex-direction:column;     /* ⬇ stack vertically */
-  align-items:flex-start;
-  gap:.35rem;
-   position:relative; /* ✅ required */
+
+function findNearbySchools() {
+  const service = new google.maps.places.PlacesService(map);
+
+  service.nearbySearch(
+    {
+      location: userLocation,
+      radius: 3000,
+      keyword: "school"
+    },
+    (results, status) => {
+      if (status !== "OK") return;
+      renderNearbyMarkers(results);
+    }
+  );
 }
 
-/* ===== KPI TREND LINE ===== */
-.kpi::before{
-  content:"";
-  position:absolute;
-  top:10px;
-  left:14px;
-  right:36px;
-  height:2px;
 
-  background:
-    repeating-linear-gradient(
-      135deg,
-      #2563EB 0 6px,
-      transparent 6px 12px
+
+function isOnboarded(place) {
+  return schools.find(s => {
+    if (!s.lat || !s.lng) return false;
+
+    const dist = google.maps.geometry.spherical.computeDistanceBetween(
+      new google.maps.LatLng(place.geometry.location.lat(), place.geometry.location.lng()),
+      new google.maps.LatLng(s.lat, s.lng)
     );
 
-  opacity:.6;
+    return dist <= MATCH_RADIUS;
+  });
 }
 
-/* Arrow head */
-.kpi::after{
-  content:"";
-  position:absolute;
-  top:6px;
-  right:16px;
-  width:0;
-  height:0;
-  border-left:6px solid #2563EB;
-  border-top:4px solid transparent;
-  border-bottom:4px solid transparent;
-  opacity:.7;
+function renderNearbyMarkers(places) {
+  clearMarkers();
+
+  places.forEach(place => {
+    const onboardedSchool = isOnboarded(place);
+
+    const marker = new google.maps.Marker({
+      position: place.geometry.location,
+      map,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 7,
+        fillColor: onboardedSchool ? "green" : "red",
+        fillOpacity: 1,
+        strokeWeight: 1
+      }
+    });
+
+    marker.addListener("click", () => {
+      onboardedSchool
+        ? openModal(onboardedSchool)
+        : openNewSchoolModal(place);
+    });
+
+    markers.push(marker);
+  });
 }
 
-
-.kpi h4{
-  font-size:.65rem;
-  color:#64748B;
-  letter-spacing:.06em;
-  text-transform:uppercase;
-}
-
-.kpi p{
-  font-size:1.25rem;     /* 👈 prevents overflow */
-  font-weight:700;
-  line-height:1.2;
-  word-break:break-word;
-}
-
-.kpi p{
-  max-width:100%;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-
-
-/* KPI accent bar */
-.kpi::before{
-  content:"";
-  width:3px;
-  height:36px;
-  background:#2563EB;
-  border-radius:4px;
-  margin-right:14px;
+function clearMarkers() {
+  markers.forEach(m => m.setMap(null));
+  markers = [];
 }
 
 /* =====================================================
-   CHARTS
+   RENDER LIST (DASHBOARD DATA)
 ===================================================== */
-.chart{
-  height:140px;
-  display:flex;
-  align-items:flex-end;
-  gap:14px;
-}
+function renderSchools() {
+  schoolList.innerHTML = "";
 
-.bar{
-  width:16px;
-  border-radius:6px;
-  background:#2563EB;
-}
+  const search = searchInput.value.toLowerCase();
+  const region = regionFilter.value;
+  const exam   = examFilter.value;
 
-/* =====================================================
-   TABLE
-===================================================== */
-table{
-  border-collapse:separate;
-  border-spacing:0;
-}
+  const filtered = schools.filter(s => {
+    if (search && !(`${s.name} ${s.location || ""}`.toLowerCase().includes(search))) return false;
+    if (region && s.region !== region) return false;
+    if (exam === "mock" && (!s.mocks || !s.mocks.length)) return false;
+    if (exam === "terminal" && (!s.terminals || !s.terminals.length)) return false;
+    return true;
+  });
 
-table th{
-  font-size:.65rem;
-  text-transform:uppercase;
-  letter-spacing:.08em;
-  color:#64748B;
-  background:#F8FAFF;
-}
+  // render list
+  filtered.forEach(s => {
+    const card = document.createElement("div");
+    card.className = "bg-white rounded-xl p-4 shadow flex justify-between items-center";
 
-tbody tr{
-  cursor:pointer;
-  transition:background .15s ease;
-}
+    card.innerHTML = `
+      <div>
+        <h3 class="font-semibold text-sm">${s.name}</h3>
+        <p class="text-xs text-gray-500">${s.location || "Unknown"} • ${s.region}</p>
+        <p class="text-xs mt-1">⏱ ${yearsOld(s.addedAt)}</p>
+      </div>
+      <span class="w-3 h-3 rounded-full ${s.onboarded ? "bg-green-500" : "bg-red-500"}"></span>
+    `;
 
-tbody tr:hover{
-  background:#F1F5FF;
-}
+    card.onclick = () => {
+      map.panTo({ lat: s.lat, lng: s.lng });
+      map.setZoom(16);
+      openModal(s);
+    };
 
-/* =====================================================
-   SCHOOL LIST CARD
-===================================================== */
-.schoolCard{
-  display:flex;
-  align-items:center;
-  gap:12px;
-}
+    schoolList.appendChild(card);
+  });
 
-.schoolAvatar{
-  width:42px;
-  height:42px;
-  border-radius:12px;
-  background:#E0E7FF;
-  color:#1D4ED8;
-  font-weight:700;
-  font-size:.9rem;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
-
-/* Date & longevity */
-.dateAdded{
-  font-size:.7rem;
-  font-weight:600;
-  color:#475569;
-}
-
-.longevity{
-  font-size:.7rem;
-  color:#64748B;
-}
-
-/* =====================================================
-   STATUS BADGES
-===================================================== */
-.statusBadge{
-  font-size:.65rem;
-  font-weight:600;
-  padding:.25rem .6rem;
-  border-radius:999px;
-}
-
-.status-new{
-  background:#DCFCE7;
-  color:#166534;
-}
-
-.status-old{
-  background:#FEF3C7;
-  color:#92400E;
-}
-
-.status-veryold{
-  background:#FEE2E2;
-  color:#991B1B;
-}
-
-/* =====================================================
-   SCHOOL PROFILE HEADER
-===================================================== */
-.profileCard{
-  display:flex;
-  gap:1rem;
-  align-items:center;
-}
-
-.profileAvatar{
-  width:64px;
-  height:64px;
-  border-radius:18px;
-  background:linear-gradient(135deg,#2563EB,#60A5FA);
-  color:white;
-  font-weight:700;
-  font-size:1.3rem;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
-
-.profileMeta{
-  font-size:.8rem;
-  color:#64748B;
-}
-
-.profileDate{
-  font-size:.75rem;
-  font-weight:600;
+  // 🔥 IMPORTANT: also update map markers
+  renderFilteredMapMarkers(filtered);
 }
 
 /* =====================================================
    MODALS
 ===================================================== */
-.modal{
-  display:none;
-  position:fixed;
-  inset:0;
-  background:rgba(15,23,42,.35);
-  align-items:center;
-  justify-content:center;
-  z-index:50;
+
+function openModal(s) {
+  schoolModal.classList.remove("hidden");
+
+  mName.textContent = s.name;
+  mRegion.textContent = s.region || "—";
+  mLocation.textContent = s.location || "—";
+  mLongevity.textContent = yearsOld(s.addedAt);
+  mContact.textContent = s.contact || "—";
+
+  mMocks.innerHTML = s.mocks?.length
+    ? s.mocks.map(m => `<li>• ${m.name} — ${m.enrollment}</li>`).join("")
+    : "<li>—</li>";
+
+  mTerminals.innerHTML = s.terminals?.length
+    ? s.terminals.map(t => `<li>• ${t.name} — ${t.enrollment}</li>`).join("")
+    : "<li>—</li>";
 }
 
-.modal.show{ display:flex }
-
-.modalBox{
-  background:#FFFFFF;
-  border-radius:16px;
-  width:420px;
-  padding:1.6rem;
-}
-
-/* =====================================================
-   TOAST
-===================================================== */
-.toast{
-  position:fixed;
-  bottom:20px;
-  right:20px;
-  background:#0F172A;
-  color:#FFFFFF;
-  padding:.7rem 1rem;
-  border-radius:.75rem;
-  font-size:.75rem;
+function closeModal() {
+  schoolModal.classList.add("hidden");
 }
 
 /* =====================================================
-   PAGE ANIMATION
-===================================================== */
-.page{
-  animation:fadeIn .25s ease;
-}
-
-@keyframes fadeIn{
-  from{ opacity:0; transform:translateY(4px) }
-  to{ opacity:1; transform:none }
-}
-
-
-/* ===== DASHBOARD CHARTS ===== */
-.chartRow{
-  display:flex;
-  align-items:center;
-  gap:10px;
-}
-
-.chartLabel{
-  width:90px;
-  font-size:.7rem;
-  font-weight:600;
-  color:#475569;
-}
-
-.chartBar{
-  flex:1;
-  height:10px;
-  border-radius:999px;
-  background:#E5EDFF;
-  overflow:hidden;
-}
-
-.chartFill{
-  height:100%;
-  border-radius:999px;
-  background:linear-gradient(90deg,#2563EB,#60A5FA);
-  transition:width .4s ease;
-}
-
-/* enrollment cards */
-.enrollCard{
-  border-radius:14px;
-  padding:1rem;
-  background:#F8FAFF;
-}
-
-.enrollValue{
-  font-size:1.4rem;
-  font-weight:700;
-  margin-top:.25rem;
-}
-
-/* ===== ACTIVITY LOG ===== */
-.activityItem{
-  display:flex;
-  gap:10px;
-  padding:.6rem;
-  border-radius:10px;
-  background:#F8FAFF;
-}
-
-.activityIcon{
-  width:32px;
-  height:32px;
-  border-radius:10px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:.9rem;
-}
-
-.activity-edit{background:#EFF6FF;color:#2563EB}
-.activity-add{background:#DCFCE7;color:#166534}
-.activity-delete{background:#FEE2E2;color:#991B1B}
-
-.activityContent{
-  font-size:.75rem;
-  color:#334155;
-}
-
-.activityTime{
-  font-size:.65rem;
-  color:#64748B;
-  margin-top:2px;
-}
-
-
-/* ===== AI CHAT ===== */
-.aiMsg{
-  padding:.6rem .8rem;
-  border-radius:14px;
-  max-width:85%;
-  line-height:1.4;
-}
-
-.aiUser{
-  background:#DBEAFE;
-  margin-left:auto;
-  text-align:right;
-}
-
-.aiBot{
-  background:white;
-  border:1px solid #E2E8F0;
-}
-
-.aiBot strong{
-  color:#2563EB;
-}
-
-
-.aiQuick{
-  background:#EFF6FF;
-  color:#1D4ED8;
-  font-size:.7rem;
-  padding:.35rem .6rem;
-  border-radius:999px;
-  border:1px solid #DBEAFE;
-  cursor:pointer;
-  transition:.15s;
-}
-
-.aiQuick:hover{
-  background:#DBEAFE;
-}
-
-/* ===============================
-   DARK MODE TEXT VISIBILITY FIX
-================================ */
-
-/* Default text */
-body,
-main,
-section,
-aside,
-header,
-footer,
-div,
-span,
-p,
-h1, h2, h3, h4, h5, h6,
-label,
-th,
-td,
-li {
-  color: var(--text-main);
-}
-
-/* Muted text */
-.text-gray-400,
-.text-gray-500,
-.text-gray-600,
-.text-slate-400,
-.text-slate-500,
-.text-slate-600 {
-  color: var(--text-muted) !important;
-}
-
-/* Explicit black text */
-.text-black {
-  color: var(--text-main) !important;
-}
-
-/* Links */
-a {
-  color: #60a5fa;
-}
-a:hover {
-  color: #93c5fd;
-}
-
-/* KPI numbers — smaller & readable */
-.kpi p {
-  font-size: 1.25rem;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-/* Profile / metadata */
-.profileMeta,
-.profileDate,
-.dateAdded,
-.longevity {
-  color: var(--text-muted) !important;
-}
-
-/* Table headers */
-thead th {
-  color: var(--text-muted) !important;
-}
-
-/* Buttons text safety */
-button {
-  color: inherit;
-}
-
-/* ===============================
-   SIDEBAR DARK MODE FIX
-================================ */
-
-aside {
-  background: var(--bg-card);
-  border-right: 1px solid var(--border-color);
-}
-
-/* Sidebar navigation items */
-.nav {
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-main);
-}
-
-.nav:hover {
-  background: var(--hover-bg);
-}
-
-.nav.active {
-  background: var(--accent-soft);
-  border-color: var(--border-color);
-  color: var(--accent);
-}
-
-
-/* ===== ADD SCHOOL BUTTON ===== */
-/* ===== ADD SCHOOL BUTTON ===== */
-.addSchoolBtn{
-  background:#020617;                 /* true black */
-  color:#ffffff !important;           /* force white */
-  border:1px solid #1E293B;
-  transition: all .3s ease;
-  box-shadow: 0 10px 25px rgba(0,0,0,.25);
-}
-
-.addSchoolBtn:hover{
-  background:#000;
-  transform: translateY(-2px);
-  box-shadow: 0 15px 35px rgba(0,0,0,.45);
-}
-
-.addSchoolIcon{
-  width:22px;
-  height:22px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  background:#ffffff;
-  color:#020617;
-  border-radius:6px;
-  font-size:14px;
-  transition: transform .3s ease;
-}
-
-.addSchoolBtn:hover .addSchoolIcon{
-  transform: rotate(90deg) scale(1.1);
-}
-
-/* Click */
-.addSchoolBtn:active{
-  transform: scale(.97);
-}
-
-/* Icon bubble */
-.addSchoolBtn .icon{
-  width:22px;
-  height:22px;
-  border-radius:6px;
-  background:#ffffff;
-  color:#0F172A;
-  font-weight:700;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:14px;
-  transition: transform .25s ease;
-}
-
-/* Hover */
-.addSchoolBtn:hover{
-  background:#020617;
-  border-color:#334155;
-  transform: translateY(-1px);
-  box-shadow:0 10px 25px rgba(15,23,42,.25);
-}
-
-/* Icon animation */
-.addSchoolBtn:hover .icon{
-  transform: rotate(90deg) scale(1.05);
-}
-
-/* Click */
-.addSchoolBtn:active{
-  transform: scale(.97);
-}
-
-</style>
-</head>
-
-<body>
-
-<div class="flex h-screen">
-
-<!-- =====================================================
-     SIDEBAR NAVIGATION
-===================================================== -->
-<aside class="w-64 border-r p-4 space-y-2">
-  <h1 class="text-2xl font-bold text-blue-600 mb-6">SchoolMapper</h1>
-
-  <div class="nav active" onclick="openPage('dashboard', this)">📊 Dashboard</div>
-  <div class="nav" onclick="openPage('schools', this)">🏫 Schools</div>
-  <div class="nav" onclick="openPage('analytics', this)">📈 Analytics</div>
-  <div class="nav" onclick="openPage('settings', this)">⚙️ Settings</div>
-</aside>
-
-<!-- =====================================================
-     MAIN CONTENT
-===================================================== -->
-<main class="flex-1 p-8 overflow-y-auto">
-
-<!-- =====================================================
-     DASHBOARD PAGE
-===================================================== -->
-<section id="dashboard" class="page active">
-
-  <!-- Dashboard Header -->
-  <div class="flex justify-between items-center mb-8">
-    <div>
-      <h2 class="text-2xl font-semibold">Dashboard</h2>
-      <p class="text-sm text-gray-400">Administrative overview</p>
-    </div>
-
-<button
-  onclick="openAddSchoolModal()"
-  class="addSchoolBtn text-white flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold"
->
-  <span class="addSchoolIcon">➕</span>
-  Add School
-</button>
-
-  </div>
-
-  <!-- Dashboard Grid -->
-  <div class="grid grid-cols-4 gap-6">
-
-    <!-- LEFT COLUMN -->
-    <div class="col-span-3 space-y-6">
-
-      <!-- KPI ROW -->
-      <div class="grid grid-cols-4 gap-6">
-        <div class="glass kpi"><h4>Total Schools</h4><p id="kSchools">0</p></div>
-        <div class="glass kpi"><h4>Mock Enroll.</h4><p id="kMock">0</p></div>
-        <div class="glass kpi"><h4>Terminal Enroll.</h4><p id="kTerminal">0</p></div>
-        <div class="glass kpi"><h4>Schools ≥ 1 Year</h4><p id="kOld">0</p></div>
-      </div>
-
-      <!-- CHARTS -->
-<div class="grid grid-cols-3 gap-6">
-
-  <!-- SCHOOLS BY REGION -->
-  <div class="glass p-6">
-    <h3 class="font-semibold mb-4">Schools by Region</h3>
-    <div id="regionChart" class="space-y-3"></div>
-  </div>
-
-  <!-- ENROLLMENT OVERVIEW -->
-  <div class="glass p-6 col-span-2">
-    <h3 class="font-semibold mb-4">Enrollment Overview</h3>
-    <div id="enrollmentChart" class="grid grid-cols-2 gap-6"></div>
-  </div>
-
-</div>
-
-      <!-- CSV UPLOAD -->
-      <div class="glass p-6">
-        <h3 class="font-semibold mb-3">Upload Monthly Exam List (CSV)</h3>
-
-        <div class="grid grid-cols-3 gap-4 text-sm mb-4">
-          <select id="examType" class="border rounded p-2">
-            <option value="mock">Mock</option>
-            <option value="terminal">Terminal</option>
-          </select>
-          <input id="examName" class="border rounded p-2" placeholder="Exam Name">
-          <input type="file" id="csvFile" class="border rounded p-2 bg-white">
-        </div>
-
-        <button onclick="processCSV()"
-          class="bg-blue-600 text-white px-4 py-2 rounded text-sm">
-          Process CSV
-        </button>
-      </div>
-    </div>
-
-    <!-- RIGHT COLUMN -->
-   <div class="glass p-6 space-y-4">
-  <div class="flex justify-between items-center">
-    <h3 class="font-semibold">Activity Log</h3>
-    <button onclick="clearActivityLog()"
-      class="text-xs text-red-500 hover:underline">
-      Clear
-    </button>
-  </div>
-
-  <ul id="activityList" class="space-y-3"></ul>
-
-  <button
-    class="w-full text-xs py-2 rounded-lg border hover:bg-slate-50">
-    View Full History →
-  </button>
-</div>
-
-
-  </div>
-</section>
-
-<!-- =====================================================
-     SCHOOLS PAGE
-===================================================== -->
-<section id="schools" class="page">
-
-  <!-- Export Controls -->
-  <div class="flex gap-2 mb-4 text-sm">
-    <select id="exportCount" class="border rounded px-2 py-1">
-      <option value="10">Last 10</option>
-      <option value="20">Last 20</option>
-      <option value="50">Last 50</option>
-      <option value="all">All Schools</option>
-    </select>
-
-    <input id="customExport" type="number"
-      placeholder="Custom #"
-      class="border rounded px-2 py-1 w-24">
-
-    <button onclick="exportExcel()"
-      class="bg-green-600 text-white px-4 py-1 rounded">
-      ⬇ Export Excel
-    </button>
-  </div>
-
-  <!-- Header -->
-  <div class="flex justify-between items-center mb-4">
-    <h2 class="text-2xl font-semibold">Schools</h2>
-  </div>
-
-  <!-- Filters -->
-  <div class="flex gap-4 mb-4 text-sm">
-    <input id="search" oninput="renderSchools()"
-      placeholder="Search name, region, contact"
-      class="border rounded-lg px-4 py-2 w-72">
-
-   <select id="regionFilter"
-        onchange="renderSchools()"
-        class="border rounded-lg px-3">
-
-  <option value="">All Regions</option>
-
-  <option>Greater Accra</option>
-  <option>Ashanti</option>
-  <option>Central</option>
-  <option>Eastern</option>
-  <option>Western</option>
-  <option>Western North</option>
-
-  <option>Volta</option>
-  <option>Oti</option>
-
-  <option>Northern</option>
-  <option>North East</option>
-  <option>Savannah</option>
-
-  <option>Upper East</option>
-  <option>Upper West</option>
-
-  <option>Bono</option>
-  <option>Bono East</option>
-  <option>Ahafo</option>
-
-</select>
-
-  </div>
-
-  <!-- Schools Table -->
-  <div class="card overflow-hidden">
-    <table class="w-full text-sm">
-      <thead>
-        <tr>
-          <th class="p-4 text-left">School</th>
-          <th class="p-4 text-left">Region</th>
-          <th class="p-4 text-left">Contact</th>
-          <th class="p-4 text-left">Longevity</th>
-          <th class="p-4 text-left">Mocks</th>
-          <th class="p-4 text-left">Terminals</th>
-          <th class="p-4 text-right">Actions</th>
-        </tr>
-      </thead>
-      <tbody id="schoolBody"></tbody>
-    </table>
-  </div>
-
-  <!-- Pagination -->
-  <div class="flex justify-between items-center mt-4 text-sm">
-    <div class="text-gray-500">
-      Page <span id="pageNum">1</span>
-    </div>
-
-    <div class="flex gap-2">
-      <button onclick="prevPage()" class="border px-3 py-1 rounded">←</button>
-      <button onclick="nextPage()" class="border px-3 py-1 rounded">→</button>
-    </div>
-  </div>
-</section>
-
-<!-- =====================================================
-     ANALYTICS PAGE
-===================================================== --><!-- =====================================================
-     ANALYTICS PAGE
-===================================================== -->
-<section id="analytics" class="page">
-
-  <!-- ===== AI INSIGHTS CHAT ===== -->
-  <div class="glass p-6 mt-8 max-w-3xl">
-
-    <div class="flex items-center gap-2 mb-4">
-      <div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center">
-        🤖
-      </div>
-      <div>
-        <h3 class="font-semibold">AI Insights Assistant</h3>
-        <p class="text-xs text-gray-500">
-          Exam, consortium & system analytics only
-        </p>
-      </div>
-    </div>
-
-    <!-- CHAT WINDOW -->
-    <div id="aiChatLog"
-         class="h-64 overflow-y-auto space-y-3 p-3  rounded-xl text-sm">
-    </div>
-
-    <!-- QUICK ACTIONS -->
-    <div class="flex flex-wrap gap-2 mb-3">
-      <button onclick="askAIQuick('inactive schools')" class="aiQuick">
-        Inactive schools
-      </button>
-      <button onclick="askAIQuick('highest mock schools')" class="aiQuick">
-        Highest mocks
-      </button>
-      <button onclick="askAIQuick('highest terminal schools')" class="aiQuick">
-        Highest terminals
-      </button>
-      <button onclick="askAIQuick('regional exam activity')" class="aiQuick">
-        Regional activity
-      </button>
-      <button onclick="askAIQuick('exam consortium')" class="aiQuick">
-        Consortium info
-      </button>
-    </div>
-
-    <!-- INPUT -->
-    <div class="flex gap-2">
-      <input
-        id="aiPrompt"
-        placeholder="Ask about exams, WAEC, NaCCA, regions…"
-        class="flex-1 border rounded-lg px-4 py-2 text-sm"
-        onkeydown="if(event.key==='Enter') askAI()"
-      >
-      <button
-        onclick="askAI()"
-        class="bg-blue-600 text-white px-4 rounded-lg text-sm">
-        Ask
-      </button>
-    </div>
-
-  </div>
-
-</section>
-
-<!-- =====================================================
-     SETTINGS PAGE
-===================================================== -->
-<section id="settings" class="page">
- <div class="glass p-6 max-w-md mt-6">
-  <h3 class="font-semibold mb-2">Appearance</h3>
-  <p class="text-sm text-gray-500 mb-4">
-    Choose how SchoolMapper looks
-  </p>
-
-  <div class="flex gap-3">
-    <button onclick="setTheme('light')"
-      class="themeBtn border px-4 py-2 rounded-lg">
-      ☀️ Light
-    </button>
-
-    <button onclick="setTheme('dark')"
-      class="themeBtn border px-4 py-2 rounded-lg">
-      🌙 Dark
-    </button>
-  </div>
-</div>
-
-</section>
-
-<!-- =====================================================
-     SCHOOL PROFILE PAGE
-===================================================== -->
-<section id="schoolProfileV2" class="page">
-
-  <div class="flex justify-between items-center mb-6">
-
-    <div class="profileCard">
-      <div id="v2Avatar" class="profileAvatar">AA</div>
-
-      <div>
-        <h2 id="v2Name" class="text-2xl font-semibold"></h2>
-        <div class="profileMeta">
-          📍 <span id="v2Region"></span> •
-          <span id="v2Added"></span>
-        </div>
-        <div class="text-xs mt-1">
-          ⏱ <span id="v2Timer"></span>
-        </div>
-      </div>
-    </div>
-
-    <button onclick="backToSchools()" class="border px-4 py-2 rounded text-sm">
-      ← Back
-    </button>
-
-  </div>
-
-  <div class="grid grid-cols-4 gap-6 mb-8">
-    <div class="glass kpi"><h4>Mocks</h4><p id="v2Mocks"></p></div>
-    <div class="glass kpi"><h4>Terminals</h4><p id="v2Terminals"></p></div>
-    <div class="glass kpi"><h4>Total Exams</h4><p id="v2Total"></p></div>
-    <div class="glass kpi"><h4>Years Active</h4><p id="v2Years"></p></div>
-  </div>
-
-  <!-- EXAMS -->
-<div class="glass p-6 mt-6">
-  <h3 class="font-semibold mb-4">Exams</h3>
-  <div id="schoolExams" class="space-y-3 text-sm"></div>
-</div>
-
-
-</section>
-
-
-</main>
-</div>
-
-<!-- =====================================================
-     MODALS
-===================================================== -->
-<div id="editModal" class="modal">
-  <div class="modalBox">
-    <h3 class="font-semibold mb-4">Edit School</h3>
-    <input id="editName" class="border w-full p-2 mb-2 rounded">
-    <input id="editRegion" class="border w-full p-2 mb-4 rounded">
-
-    <div class="flex justify-end gap-2">
-      <button onclick="closeEdit()">Cancel</button>
-      <button onclick="saveEdit()" class="bg-blue-600 text-white px-4 py-2 rounded">
-        Save
-      </button>
-    </div>
-  </div>
-</div>
-
-<div id="addSchoolModal" class="modal">
-  <div class="modalBox">
-    <h3 class="font-semibold mb-4">Add New School</h3>
-
-    <input class="border w-full p-2 rounded mb-2" placeholder="School Name">
-    <input class="border w-full p-2 rounded mb-2" placeholder="Location">
-    <input class="border w-full p-2 rounded mb-2" placeholder="Region">
-    <input class="border w-full p-2 rounded mb-2" placeholder="Contact">
-
-    <div class="flex justify-end gap-2">
-      <button onclick="closeAddSchoolModal()">Cancel</button>
-      <button onclick="saveSchoolFromDashboard()"
-        class="bg-blue-600 text-white px-4 py-2 rounded">
-        Save School
-      </button>
-    </div>
-  </div>
-</div>
-
-
-<script>
-/* =====================================================
-   GLOBAL STATE
+   NEW SCHOOL REPORT (ADMIN REVIEW)
 ===================================================== */
 
-const DELETE_CODE = "ADMIN123";
-let editingIndex = null;
-let currentView = "dashboard"; // ✅ REQUIRED
+let pendingSchool = null;
 
-/* =====================================================
-   ACTIVITY LOG
-===================================================== */
-let activityLog = [
-  {
-    type: "edit",
-    school: "Alpha Academy",
-    field: "Region",
-    from: "Central",
-    to: "Greater Accra",
-    time: new Date("2026-01-30T09:15:00")
-  },
-  {
-    type: "add",
-    school: "Bright Soul",
-    field: "School",
-    from: "-",
-    to: "Added",
-    time: new Date("2026-01-29T16:42:00")
-  }
-];
-
-
-function renderActivityLog(){
-  const list = document.getElementById("activityList");
-  if(!list) return;
-
-  list.innerHTML = "";
-
-  activityLog
-    .slice(-10)
-    .reverse()
-    .forEach(a=>{
-      const icon =
-        a.type === "edit" ? "✏️" :
-        a.type === "add" ? "➕" : "🗑";
-
-      const cls =
-        a.type === "edit" ? "activity-edit" :
-        a.type === "add" ? "activity-add" : "activity-delete";
-
-      list.innerHTML += `
-        <li class="activityItem">
-          <div class="activityIcon ${cls}">
-            ${icon}
-          </div>
-          <div class="activityContent">
-            <strong>${a.school}</strong><br>
-            ${a.field}: <span class="text-red-500">${a.from}</span>
-            → <span class="text-green-600">${a.to}</span>
-            <div class="activityTime">
-              ${a.time.toLocaleString()}
-            </div>
-          </div>
-        </li>
-      `;
-    });
-}
-
-let schools = [
-{
-  id: "sch_001",
-  name: "Alpha Academy",
-  region: "Greater Accra",
-  contact: "024000111",
-  addedAt: "2021-01-01",
-
-  mock: 12,
-  terminal: 9,
-
-  exams: [
-    {
-      id: "ex_001",
-      type: "Mock",
-      name: "BECE Mock 1",
-      date: "2024-11-15",
-      enrollment: 120
-    },
-    {
-      id: "ex_002",
-      type: "Terminal",
-      name: "End of Term 1",
-      date: "2024-12-10",
-      enrollment: 110
-    }
-  ],
-
-  history: []
-},
-
-
-  {
-    id: "sch_002",
-    name: "Omega Academy",
-    region: "Western",
-    contact: "024000111",
-    addedAt: "2025-01-01",
-    mock: 70,
-    terminal: 50
-  },
-
-    {
-    id: "sch_003",
-    name: "St John Academy",
-    region: "Eastern",
-    contact: "024000111",
-    addedAt: "2023-09-01",
-    mock: 50,
-    terminal: 40
-  },
-
-   {
-    id: "sch_004",
-    name: "Begrat Prep",
-    region: "Volta",
-    contact: "024000111",
-    addedAt: "2012-05-01",
-    mock: 1000,
-    terminal: 400
-  },
-
- {
-    id: "sch_005",
-    name: "Justis School",
-    region: "Northern",
-    contact: "024000111",
-    addedAt: "2017-08-01",
-    mock: 500,
-    terminal: 370
-  },
-
-   {
-    id: "sch_006",
-    name: "Apam Senior High School",
-    region: "Central",
-    contact: "024000111",
-    addedAt: "2024-08-01",
-    mock: 133,
-    terminal: 30
-  },
-
-     {
-    id: "sch_007",
-    name: "Living Grace Prep",
-    region: "Oti",
-    contact: "024000111",
-    addedAt: "2025-08-01",
-    mock: 233,
-    terminal: 30
-  },
-
-  
-];
-
-
-let currentPage = 1;
-const PAGE_SIZE = 5;
-const MAX_SCHOOLS = 50;
-
-
-/* =====================================================
-   NAVIGATION
-===================================================== */
-function openPage(id, el = null) {
-  document.querySelectorAll(".page").forEach(p =>
-    p.classList.remove("active")
-  );
-
-  const page = document.getElementById(id);
-  if (!page) {
-    console.error("Page not found:", id);
-    return;
-  }
-
-  page.classList.add("active");
-
-  // Only update sidebar if clicked from nav
-  if (el) {
-    document.querySelectorAll(".nav").forEach(n =>
-      n.classList.remove("active")
-    );
-    el.classList.add("active");
-  }
+function openNewSchoolModal(place) {
+  pendingSchool = place;
+  alert(`New School Detected:\n${place.name}\nSend to admin.`);
+  // Firebase write later
 }
 
 /* =====================================================
-   HELPERS
+   EVENTS + INIT
 ===================================================== */
-function years(date) {
-  return Math.floor(
-    (Date.now() - new Date(date).getTime()) / (1000 * 60 * 60 * 24 * 365)
-  );
-}
 
-function toast(message) {
-  const t = document.createElement("div");
-  t.className = "toast";
-  t.textContent = message;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3000);
-}
+searchInput.oninput = renderSchools;
+regionFilter.onchange = renderSchools;
+examFilter.onchange = renderSchools;
 
-/* =====================================================
-   DASHBOARD KPIs
-===================================================== */
-function initDashboard() {
-  document.getElementById("kSchools").textContent = schools.length;
-  document.getElementById("kMock").textContent =
-    schools.reduce((a, s) => a + s.mock, 0);
-  document.getElementById("kTerminal").textContent =
-    schools.reduce((a, s) => a + s.terminal, 0);
-  document.getElementById("kOld").textContent =
-    schools.filter(s => years(s.addedAt) >= 1).length;
-}
-
-
-function renderDashboardCharts(){
-
-  /* ===== REGION CHART ===== */
-  const regionCount = {};
-  schools.forEach(s=>{
-    regionCount[s.region] = (regionCount[s.region] || 0) + 1;
-  });
-
-  const maxRegion = Math.max(...Object.values(regionCount));
-  const regionWrap = document.getElementById("regionChart");
-  regionWrap.innerHTML = "";
-
-  Object.entries(regionCount).forEach(([region,count])=>{
-    const percent = (count / maxRegion) * 100;
-
-    regionWrap.innerHTML += `
-      <div class="chartRow">
-        <div class="chartLabel">${region}</div>
-        <div class="chartBar">
-          <div class="chartFill" style="width:${percent}%"></div>
-        </div>
-        <div class="text-xs font-semibold">${count}</div>
-      </div>
-    `;
-  });
-
-
-  /* ===== ENROLLMENT CHART ===== */
-  const totalMock = schools.reduce((a,s)=>a+s.mock,0);
-  const totalTerminal = schools.reduce((a,s)=>a+s.terminal,0);
-
-  document.getElementById("enrollmentChart").innerHTML = `
-    <div class="enrollCard">
-      <div class="text-xs text-slate-500">Mock Enrollment</div>
-      <div class="enrollValue text-blue-600">${totalMock}</div>
-    </div>
-
-    <div class="enrollCard">
-      <div class="text-xs text-slate-500">Terminal Enrollment</div>
-      <div class="enrollValue text-green-600">${totalTerminal}</div>
-    </div>
-  `;
-}
-
-
-/* =====================================================
-   SCHOOLS TABLE
-===================================================== */
-function formatDatePretty(dateStr) {
-  const d = new Date(dateStr);
-  const day = d.getDate();
-  const suffix =
-    day % 10 === 1 && day !== 11 ? "st" :
-    day % 10 === 2 && day !== 12 ? "nd" :
-    day % 10 === 3 && day !== 13 ? "rd" : "th";
-
-  return `${day}${suffix} ${d.toLocaleString("default",{month:"long"})} ${d.getFullYear()}`;
-}
-
-function schoolStatus(dateStr) {
-  const y = years(dateStr);
-  if (y < 1) return { label:"NEW", cls:"status-new" };
-  if (y < 3) return { label:"OLD", cls:"status-old" };
-  return { label:"VERY OLD", cls:"status-veryold" };
-}
-
-function longevityTimer(dateStr) {
-  const start = new Date(dateStr);
-  const now = new Date();
-  const diff = now - start;
-
-  const days = Math.floor(diff / (1000*60*60*24));
-  const years = Math.floor(days / 365);
-  const months = Math.floor((days % 365) / 30);
-
-  return `${years}y ${months}m`;
-}
-
-function initials(name) {
-  return name
-    .split(" ")
-    .slice(0,2)
-    .map(w => w[0])
-    .join("")
-    .toUpperCase();
-}
-
-function renderSchools() {
-  const searchVal = document.getElementById("search").value.toLowerCase();
-  const regionVal = document.getElementById("regionFilter").value;
-
-  /* 
-    TABLE RULE:
-    - newest first
-    - page 1 = latest schools
-  */
-  let filtered = [...schools]
-    .sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt)) // 🔥 KEY FIX
-    .filter(s => {
-      const matchSearch =
-        s.name.toLowerCase().includes(searchVal) ||
-        s.region.toLowerCase().includes(searchVal) ||
-        s.contact.includes(searchVal);
-
-      const matchRegion = !regionVal || s.region === regionVal;
-      return matchSearch && matchRegion;
-    });
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  currentPage = Math.min(currentPage, totalPages);
-
-  const start = (currentPage - 1) * PAGE_SIZE;
-  const pageData = filtered.slice(start, start + PAGE_SIZE);
-
-  document.getElementById("pageNum").textContent = currentPage;
-
-  const tbody = document.getElementById("schoolBody");
-  tbody.innerHTML = "";
-
-  pageData.forEach(s => {
-    const index = schools.indexOf(s);
-    const status = schoolStatus(s.addedAt);
-
-    const tr = document.createElement("tr");
-    tr.className = "border-t hover:bg-gray-50";
-
-    tr.innerHTML = `
-      <td class="p-4">
-        <div class="schoolCard">
-          <div class="schoolAvatar">${initials(s.name)}</div>
-          <div>
-            <div class="font-medium">${s.name}</div>
-            <div class="dateAdded">
-              Added ${formatDatePretty(s.addedAt)}
-            </div>
-            <div class="longevity">
-              ⏱ ${years(s.addedAt)} yrs
-              <span class="statusBadge ${status.cls}">
-                ${status.label}
-              </span>
-            </div>
-          </div>
-        </div>
-      </td>
-
-      <td class="p-4">${s.region}</td>
-      <td class="p-4">${s.contact}</td>
-      <td class="p-4">${years(s.addedAt)} yrs</td>
-      <td class="p-4">${s.mock}</td>
-      <td class="p-4">${s.terminal}</td>
-
-      <td class="p-4 text-right">
-        <button
-  class="text-blue-600 text-xs font-semibold px-3 py-1 rounded-md hover:bg-blue-50"
-  onclick="openSchoolProfileV2('${s.id}')"
->
-  View →
-</button>
-
-      </td>
-    `;
-
-    tbody.appendChild(tr);
-  });
-}
-
-
-/* =====================================================
-   EDIT SCHOOL
-===================================================== */
-function editSchool(index) {
-  editingIndex = index;
-  document.getElementById("editName").value = schools[index].name;
-  document.getElementById("editRegion").value = schools[index].region;
-  document.getElementById("editModal").classList.add("show");
-}
-
-function closeEdit() {
-  document.getElementById("editModal").classList.remove("show");
-}
-
-function saveEdit() {
-  if (editingIndex === null) return;
-
-  schools[editingIndex].name =
-    document.getElementById("editName").value;
-  schools[editingIndex].region =
-    document.getElementById("editRegion").value;
-
-  closeEdit();
+window.onload = () => {
   renderSchools();
-  initDashboard();
-  toast("School updated");
-}
-
-/* =====================================================
-   DELETE SCHOOL
-===================================================== */
-function deleteSchool(index) {
-  const code = prompt("Enter UNIQUE ADMIN DELETE CODE");
-  if (code !== DELETE_CODE) {
-    toast("Invalid delete code");
-    return;
-  }
-
-  schools.splice(index, 1);
-  renderSchools();
-  initDashboard();
-  toast("School deleted");
-}
-
-/* =====================================================
-   ADD SCHOOL
-===================================================== */
-function openAddSchoolModal() {
-  document.getElementById("addSchoolModal").classList.add("show");
-}
-
-function closeAddSchoolModal() {
-  document.getElementById("addSchoolModal").classList.remove("show");
-}
-
-function saveSchoolFromDashboard() {
-  const inputs = document
-    .getElementById("addSchoolModal")
-    .querySelectorAll("input");
-
-  const name = inputs[0].value.trim();
-  const region = inputs[2].value.trim();
-  const contact = inputs[3].value.trim();
-
-  if (!name || !region) {
-    toast("School name & region required");
-    return;
-  }
-
-  schools.push({
-    name,
-    region,
-    contact,
-    addedAt: new Date().toISOString(), // newest timestamp
-    mock: 0,
-    terminal: 0
-  });
-
-  currentPage = 1; // ✅ THIS LINE — forces latest schools to top
-
-  inputs.forEach(i => (i.value = ""));
-  closeAddSchoolModal();
-  renderSchools();
-  initDashboard();
-  toast("School added");
-}
-
-/* =====================================================
-   CSV PROCESSING
-===================================================== */
-function processCSV() {
-  const file = document.getElementById("csvFile").files[0];
-  if (!file) {
-    toast("Upload a CSV file");
-    return;
-  }
-
-  const examType = document.getElementById("examType").value;
-  const reader = new FileReader();
-
-  reader.onload = e => {
-    const rows = e.target.result
-      .split("\n")
-      .map(r => r.trim())
-      .filter(Boolean);
-
-    let updated = 0;
-    rows.forEach(name => {
-      const school = schools.find(
-        s => s.name.toLowerCase() === name.toLowerCase()
-      );
-      if (school) {
-        school[examType]++;
-        updated++;
-      }
-    });
-
-    renderSchools();
-    initDashboard();
-    toast(`${updated} schools updated`);
-  };
-
-  reader.readAsText(file);
-}
-
-/* =====================================================
-   INIT
-===================================================== */
-renderSchools();
-initDashboard();
-renderDashboardCharts();
-
-
-
-let activeSchoolIndex = null;
-
-function openSchoolProfile(index) {
-  if (index == null || !schools[index]) {
-    console.error("Invalid school index:", index);
-    return;
-  }
-
-  activeSchoolIndex = index;
-  const s = schools[index];
-
-  // ===== FILL HEADER =====
-  document.getElementById("spName").textContent = s.name;
-  document.getElementById("spRegion").textContent = s.region;
-  document.getElementById("spAvatar").textContent = initials(s.name);
-
-  const addedHeader = document.getElementById("spAdded");
-  if (addedHeader) {
-    addedHeader.textContent = formatDatePretty(s.addedAt);
-  }
-
-  const addedKpi = document.getElementById("spAddedKpi");
-  if (addedKpi) {
-    addedKpi.textContent = formatDatePretty(s.addedAt);
-  }
-
-  document.getElementById("spMocks").textContent = s.mock;
-  document.getElementById("spTerminals").textContent = s.terminal;
-  document.getElementById("spEnroll").textContent = s.mock + s.terminal;
-  document.getElementById("spLocation").textContent =
-    s.location || "Not specified";
-
-  // ===== STATUS =====
-  const status = schoolStatus(s.addedAt);
-  const badge = document.getElementById("spStatus");
-  badge.textContent = status.label;
-  badge.className = `statusBadge ${status.cls}`;
-
-  // ===== TIMER =====
-  startTimer(s.addedAt);
-
-  // ===== PAGE SWITCH (THIS WAS BLOCKED BEFORE) =====
-  document.querySelectorAll(".page").forEach(p =>
-    p.classList.remove("active")
-  );
-
-  document
-    .getElementById("schoolProfilePage")
-    .classList.add("active");
-
-  currentView = "profile";
-
-  openProfileTab("overview");
-}
-
-
-
-function backToSchools() {
-  document.querySelectorAll(".page").forEach(p =>
-    p.classList.remove("active")
-  );
-  document.getElementById("schools").classList.add("active");
-  currentView = "schools";
-}
-
-function editActiveSchool() {
-  if (activeSchoolIndex !== null) {
-    editSchool(activeSchoolIndex);
-  }
-}
-
-function deleteActiveSchool() {
-  if (activeSchoolIndex !== null) {
-    deleteSchool(activeSchoolIndex);
-    backToSchools();
-  }
-}
-
-
-function openProfileTab(tab) {
-  document
-    .querySelectorAll(".profileTab")
-    .forEach(t => t.classList.add("hidden"));
-
-  document
-    .querySelectorAll(".tab")
-    .forEach(b => b.classList.remove("active"));
-
-  document.getElementById(`tab-${tab}`).classList.remove("hidden");
-}
-
-function prettyDate(dateStr){
-  const d=new Date(dateStr);
-  const day=d.getDate();
-  const s=day%10===1&&day!==11?"st":day%10===2&&day!==12?"nd":day%10===3&&day!==13?"rd":"th";
-  return `${day}${s} ${d.toLocaleString("default",{month:"long"})} ${d.getFullYear()}`;
-}
-
-function statusInfo(dateStr){
-  const y=years(dateStr);
-  if(y<1) return ["NEW","status-new"];
-  if(y<3) return ["OLD","status-old"];
-  return ["VERY OLD","status-veryold"];
-}
-
-function startTimer(dateStr){
-  setInterval(()=>{
-    const diff=Date.now()-new Date(dateStr);
-    const days=Math.floor(diff/86400000);
-    document.getElementById("spTimer").textContent=
-      `${Math.floor(days/365)}y ${Math.floor((days%365)/30)}m ${days%30}d`;
-  },1000);
-}
-
-function openEditProfile(){
-  alert("Edit form opens here (FROM → TO UI next step)");
-}
-
-function confirmDeleteProfile(){
-  const code=prompt("Enter SECRET DELETE CODE");
-  if(code==="ADMIN123"){
-    deleteActiveSchool();
-  }else{
-    toast("Invalid delete code");
-  }
-}
-
-function nextPage(){
-  currentPage++;
-  renderSchools();
-}
-
-function prevPage(){
-  if(currentPage > 1){
-    currentPage--;
-    renderSchools();
-  }
-}
-
-function exportExcel(){
-  const count = document.getElementById("exportCount").value;
-  const custom = document.getElementById("customExport").value;
-
-  // SAME ORDER AS TABLE (NEWEST FIRST)
-  let data = [...schools].sort(
-    (a, b) => new Date(b.addedAt) - new Date(a.addedAt)
-  );
-
-  if (custom && Number(custom) > 0) {
-    data = data.slice(0, Number(custom));
-  } 
-  else if (count !== "all") {
-    data = data.slice(0, Number(count));
-  }
-
-  const sheetData = [
-    ["SCHOOL NAME","REGION","CONTACT","LONGEVITY (YRS)","MOCKS","TERMINALS"]
-  ];
-
-  data.forEach(s=>{
-    sheetData.push([
-      s.name.toUpperCase(),
-      s.region.toUpperCase(),
-      s.contact,
-      years(s.addedAt),
-      s.mock,
-      s.terminal
-    ]);
-  });
-
-  const ws = XLSX.utils.aoa_to_sheet(sheetData);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Schools Report");
-
-  XLSX.writeFile(wb, "Schools_Report.xlsx");
-  toast(`Exported ${data.length} schools`);
-}
-
-/* =====================================================
-   AI ANALYTICS ASSISTANT
-===================================================== */
-
-function askAI(){
-  const input = document.getElementById("aiPrompt");
-  const log = document.getElementById("aiChatLog");
-  const question = input.value.trim();
-
-  if(!question) return;
-
-  // USER MESSAGE
-  log.innerHTML += `
-    <div class="aiMsg aiUser">
-      ${question}
-    </div>
-  `;
-
-  input.value = "";
-  log.scrollTop = log.scrollHeight;
-
-  // THINKING DELAY
-  setTimeout(()=>{
-    const answer = generateAIInsight(question.toLowerCase());
-
-    log.innerHTML += `
-      <div class="aiMsg aiBot">
-        <strong>Insight:</strong><br>${answer}
-      </div>
-    `;
-
-    log.scrollTop = log.scrollHeight;
-  }, 500);
-}
-
-
-function generateAIInsight(q){
-  q = q.toLowerCase();
-
-  const inactive = schools.filter(s => s.mock + s.terminal === 0);
-  const topMock = [...schools].sort((a,b)=>b.mock-a.mock).slice(0,5);
-  const topTerminal = [...schools].sort((a,b)=>b.terminal-a.terminal).slice(0,5);
-
-  if(q.includes("inactive")){
-    return `
-      <strong>Exam inactivity detected:</strong>
-      <ul>
-        ${inactive.map(s=>`<li>${s.name} (${s.region})</li>`).join("")}
-      </ul>
-      <em>These schools have no mock or terminal exam records.</em>
-    `;
-  }
-
-  if(q.includes("highest mock")){
-    return `
-      <strong>Top mock-performing schools:</strong>
-      <ol>
-        ${topMock.map(s=>`<li>${s.name} — ${s.mock} mocks</li>`).join("")}
-      </ol>
-    `;
-  }
-
-  if(q.includes("highest terminal")){
-    return `
-      <strong>Top terminal exam schools:</strong>
-      <ol>
-        ${topTerminal.map(s=>`<li>${s.name} — ${s.terminal} terminals</li>`).join("")}
-      </ol>
-    `;
-  }
-
-  if(q.includes("consortium")){
-    return `
-      <strong>Exam consortium insight:</strong>
-      Schools often participate in:
-      <ul>
-        <li>WAEC-aligned mock examinations</li>
-        <li>Regional mock consortia</li>
-        <li>Inter-school assessment clusters</li>
-      </ul>
-      Consortium participation improves benchmarking and exam readiness.
-    `;
-  }
-
-  if(q.includes("waec") || q.includes("ges") || q.includes("nacca")){
-    return `
-      <strong>Ghana exam governance:</strong>
-      <ul>
-        <li><b>WAEC</b> – Conducts BECE & WASSCE examinations</li>
-        <li><b>NaCCA</b> – Defines curriculum & learning outcomes</li>
-        <li><b>GES</b> – Supervises public education delivery</li>
-      </ul>
-      Alignment with these bodies ensures exam validity and recognition.
-    `;
-  }
-
-  if(q.includes("region")){
-    const regions = {};
-    schools.forEach(s=>{
-      regions[s.region]=(regions[s.region]||0)+(s.mock+s.terminal);
-    });
-
-    return `
-      <strong>Regional exam activity:</strong>
-      <ul>
-        ${Object.entries(regions)
-          .sort((a,b)=>b[1]-a[1])
-          .map(r=>`<li>${r[0]} — ${r[1]} exams</li>`).join("")}
-      </ul>
-    `;
-  }
-
-  return `
-    <strong>I answer exam-focused questions only.</strong>
-    <ul>
-      <li>Inactive exam schools</li>
-      <li>Top mock or terminal schools</li>
-      <li>Exam consortia & readiness</li>
-      <li>WAEC, GES, NaCCA roles</li>
-      <li>Regional exam trends</li>
-    </ul>
-  `;
-}
-
-
-function aiWelcome(){
-  const log = document.getElementById("aiChatLog");
-  if(log && log.innerHTML === ""){
-    log.innerHTML = `
-      <div class="aiMsg aiBot">
-        <strong>Hello 👋</strong><br>
-        I can analyze your school data and provide insights.
-        Try asking:
-        <ul class="list-disc ml-4 mt-1 text-xs">
-          <li>How many inactive schools?</li>
-          <li>Who is the top performing school?</li>
-          <li>Give suggestions</li>
-        </ul>
-      </div>
-    `;
-  }
-}
-
-function askAIQuick(text){
-  document.getElementById("aiPrompt").value = text;
-  askAI();
-}
-
-/* =====================================================
-   THEME SYSTEM (LIGHT / DARK)
-===================================================== */
-
-function setTheme(theme) {
-  document.documentElement.setAttribute("data-theme", theme);
-  localStorage.setItem("theme", theme);
-}
-
-function loadTheme() {
-  const savedTheme = localStorage.getItem("theme") || "light";
-  document.documentElement.setAttribute("data-theme", savedTheme);
-}
-
-loadTheme();
-
-
-let activeSchoolId = null;
-let profileTimer = null;
-
-function openSchoolProfileV2(id) {
-  const school = schools.find(s => s.id === id);
-  if (!school) return;
-
-  activeSchoolId = id;
-
-  // Stop old timer
-  if (profileTimer) clearInterval(profileTimer);
-
-  // Fill data
-  document.getElementById("v2Name").textContent = school.name;
-  document.getElementById("v2Region").textContent = school.region;
-  document.getElementById("v2Added").textContent = formatDatePretty(school.addedAt);
-  document.getElementById("v2Avatar").textContent = initials(school.name);
-
-  document.getElementById("v2Mocks").textContent = school.mock;
-  document.getElementById("v2Terminals").textContent = school.terminal;
-  document.getElementById("v2Total").textContent = school.mock + school.terminal;
-  document.getElementById("v2Years").textContent = years(school.addedAt);
-
-  // Timer
-  profileTimer = setInterval(() => {
-    document.getElementById("v2Timer").textContent =
-      longevityTimer(school.addedAt);
-  }, 1000);
-
-  // Page switch
-  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
-  document.getElementById("schoolProfileV2").classList.add("active");
-
-    renderSchoolExams(); // ✅ ADD THIS AT THE END
-}
-
-function renderSchoolExams() {
-  const school = schools.find(s => s.id === activeSchoolId);
-  const wrap = document.getElementById("schoolExams");
-
-  if (!wrap) return;
-
-  wrap.innerHTML = "";
-
-  if (!school || !school.exams || school.exams.length === 0) {
-    wrap.innerHTML =
-      "<p class='text-gray-400'>No exams recorded yet</p>";
-    return;
-  }
-
-  school.exams.forEach(exam => {
-    wrap.innerHTML += `
-      <div class="border rounded-lg p-4 flex justify-between items-center hover:bg-slate-50 cursor-pointer">
-        <div>
-          <div class="font-medium">${exam.name}</div>
-          <div class="text-xs text-gray-500">
-            ${exam.type} • ${exam.date} • ${exam.enrollment} students
-          </div>
-        </div>
-
-        <button
-          class="text-blue-600 text-xs font-semibold"
-          onclick="openExamDetails('${exam.id}')"
-        >
-          View →
-        </button>
-      </div>
-    `;
-  });
-}
-
-
-
+  getUserLocation();
+};
 </script>
-
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 </body>
 </html>
