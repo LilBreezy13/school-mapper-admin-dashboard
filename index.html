@@ -17,7 +17,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden}
 .search-bar{
   position:fixed;
   top:env(safe-area-inset-top,24px);
-  margin-top: 5%;
+  margin-top:5%;
   left:50%;
   transform:translateX(-50%);
   width:min(92vw,520px);
@@ -42,61 +42,59 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden}
 }
 .icon-btn.active{background:#22c55e;color:#000}
 
-/* FIXED BOTTOM SHEET */
+/* BOTTOM SHEET */
 .sheet{
   position:fixed;
-  left:0;
-  right:0;
-  bottom:0;
-  height:320px;               /* 🔒 FIXED HEIGHT */
-  background:#111;
-  color:#fff;
+  left:0;right:0;bottom:0;
+  height:320px;
+  background:#111;color:#fff;
   border-radius:24px 24px 0 0;
-
   transform:translateY(100%);
-  transition:transform .25s ease-out; /* 🔒 ONLY VERTICAL */
-  will-change:transform;
-
+  transition:transform .25s ease-out;
   z-index:60;
   display:flex;
   flex-direction:column;
 }
-
-.sheet.show{
-  transform:translateY(0);
-}
+.sheet.show{transform:translateY(0)}
 
 .sheet-handle{
-  width:40px;
-  height:4px;
+  width:40px;height:4px;
   background:#444;
   border-radius:999px;
   margin:8px auto;
 }
 
+.sheet-header{
+  position:relative;
+}
+
+.sheet-close{
+  position:absolute;
+  right:16px;
+  top:6px;
+  font-size:20px;
+  color:#aaa;
+}
+
 .sheet-content{
   flex:1;
-  overflow-y:auto;           /* ✅ CONTENT SCROLLS */
+  overflow-y:auto;
   overflow-x:hidden;
   padding:0 16px 16px;
 }
 
-/* PHOTOS */
 .photo-row{
   display:flex;
   gap:8px;
   overflow-x:auto;
-  padding-bottom:4px;
 }
-
 .photo-row img{
   height:90px;
-  min-width:120px;           /* 🔒 PREVENT JUMP */
+  min-width:120px;
   object-fit:cover;
   border-radius:12px;
-  background:#222;           /* placeholder */
+  background:#222;
 }
-
 
 input{font-size:16px;min-width:0}
 </style>
@@ -124,18 +122,17 @@ input{font-size:16px;min-width:0}
   <button onclick="openAddModal()" class="icon-btn">➕</button>
 </div>
 
-<!-- FIXED BOTTOM SHEET -->
+<!-- BOTTOM SHEET -->
 <div id="infoSheet" class="sheet">
-  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div class="sheet-handle"></div>
+    <button id="sheetCloseBtn" class="sheet-close">✕</button>
+  </div>
 
   <div class="sheet-content space-y-3">
     <h2 id="infoName" class="text-lg font-semibold"></h2>
     <p id="infoAddress" class="text-sm text-gray-400"></p>
-
-    <!-- RATING -->
     <div id="infoRating" class="text-sm text-yellow-400"></div>
-
-    <!-- PHOTOS -->
     <div id="photoRow" class="photo-row"></div>
 
     <div class="flex gap-3 pt-2">
@@ -167,7 +164,8 @@ input{font-size:16px;min-width:0}
 
 <script>
 let map,userLoc,markers=[],radius=5000,view="all";
-let placesService;
+let placesService,activePlace=null;
+let startY=0,dragging=false;
 
 const portalSchools=[
   {name:"Alpha Academy",lat:5.669,lng:-0.167,contact:"024000111"}
@@ -187,8 +185,7 @@ map=new google.maps.Map(document.getElementById("map"),{
 placesService=new google.maps.places.PlacesService(map);
 
 new google.maps.Marker({
-  position:userLoc,
-  map,
+  position:userLoc,map,
   icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:"#3B82F6",fillOpacity:1}
 });
 
@@ -196,18 +193,39 @@ loadSchools();
 });
 }
 
-function setRadius(r){radius=r;loadSchools()}
-function toggleView(){
-  view=view==="all"?"onboarded":"all";
-  document.getElementById("onboardBtn")
-    .classList.toggle("active",view==="onboarded");
-  loadSchools();
+function openSheet(){
+  infoSheet.classList.add("show");
+  map.setOptions({gestureHandling:"cooperative"});
 }
 
-function clearMarkers(){
-  markers.forEach(m=>m.setMap(null));
-  markers=[];
+function closeSheet(){
+  infoSheet.classList.remove("show");
+  map.setOptions({gestureHandling:"greedy"});
 }
+
+sheetCloseBtn.onclick=closeSheet;
+
+infoSheet.addEventListener("touchstart",e=>{
+  startY=e.touches[0].clientY;
+  dragging=true;
+});
+infoSheet.addEventListener("touchmove",e=>{
+  if(!dragging)return;
+  if(e.touches[0].clientY-startY>80){
+    closeSheet();
+    dragging=false;
+  }
+});
+infoSheet.addEventListener("touchend",()=>dragging=false);
+
+function setRadius(r){radius=r;loadSchools()}
+function toggleView(){
+view=view==="all"?"onboarded":"all";
+onboardBtn.classList.toggle("active",view==="onboarded");
+loadSchools();
+}
+
+function clearMarkers(){markers.forEach(m=>m.setMap(null));markers=[]}
 
 function loadSchools(){
 clearMarkers();
@@ -215,70 +233,50 @@ const q=searchInput.value.toLowerCase();
 
 // GREEN
 portalSchools.forEach(s=>{
-  if(view==="onboarded"||view==="all"){
-    if(q&&!s.name.toLowerCase().includes(q))return;
-    const m=new google.maps.Marker({
-      position:{lat:s.lat,lng:s.lng},
-      map,
-      icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:"green",fillOpacity:1}
-    });
-    m.addListener("click",()=>showPortal(s));
-    markers.push(m);
-  }
+if(view==="onboarded"||view==="all"){
+if(q&&!s.name.toLowerCase().includes(q))return;
+const m=new google.maps.Marker({
+position:{lat:s.lat,lng:s.lng},map,
+icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:"green",fillOpacity:1}
 });
+m.addListener("click",()=>showPortal(s));
+markers.push(m);
+}});
+
 if(view==="onboarded")return;
 
 // RED
-placesService.nearbySearch(
-{location:userLoc,radius,keyword:"school"},
-(res)=>{
+placesService.nearbySearch({location:userLoc,radius,keyword:"school"},res=>{
 (res||[]).forEach(p=>{
-  if(q&&!p.name.toLowerCase().includes(q))return;
-  const m=new google.maps.Marker({
-    position:p.geometry.location,
-    map,
-    icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:"red",fillOpacity:1}
-  });
-  m.addListener("click",()=>loadPlaceDetails(p.place_id));
-  markers.push(m);
+if(q&&!p.name.toLowerCase().includes(q))return;
+const m=new google.maps.Marker({
+position:p.geometry.location,map,
+icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:"red",fillOpacity:1}
+});
+m.addListener("click",()=>loadPlaceDetails(p.place_id));
+markers.push(m);
 });
 });
 }
 
 function loadPlaceDetails(placeId){
 placesService.getDetails({
-  placeId,
-  fields:[
-    "name",
-    "formatted_address",
-    "formatted_phone_number",
-    "rating",
-    "user_ratings_total",
-    "photos",
-    "geometry"
-  ]
-}, p=>{
-  infoName.textContent=p.name;
-  infoAddress.textContent=p.formatted_address||"";
-  infoRating.innerHTML = p.rating
-    ? `⭐ ${p.rating} (${p.user_ratings_total} reviews)`
-    : "";
-
-  // Photos
-  photoRow.innerHTML="";
-  (p.photos||[]).slice(0,6).forEach(ph=>{
-    const img=document.createElement("img");
-    img.src=ph.getUrl({maxHeight:200});
-    photoRow.appendChild(img);
-  });
-
-  callBtn.href=p.formatted_phone_number?"tel:"+p.formatted_phone_number:"#";
-  dirBtn.onclick=()=>openNavigation(
-    p.geometry.location.lat(),
-    p.geometry.location.lng()
-  );
-
-  infoSheet.classList.add("show");
+placeId,
+fields:["name","formatted_address","formatted_phone_number","rating","user_ratings_total","photos","geometry"]
+},p=>{
+activePlace=p;
+infoName.textContent=p.name;
+infoAddress.textContent=p.formatted_address||"";
+infoRating.innerHTML=p.rating?`⭐ ${p.rating} (${p.user_ratings_total})`:"";
+photoRow.innerHTML="";
+(p.photos||[]).slice(0,6).forEach(ph=>{
+const img=document.createElement("img");
+img.src=ph.getUrl({maxHeight:200});
+photoRow.appendChild(img);
+});
+callBtn.href=p.formatted_phone_number?"tel:"+p.formatted_phone_number:"#";
+dirBtn.onclick=()=>openNavigation(p.geometry.location.lat(),p.geometry.location.lng());
+openSheet();
 });
 }
 
@@ -289,17 +287,17 @@ infoRating.innerHTML="";
 photoRow.innerHTML="";
 callBtn.href="tel:"+s.contact;
 dirBtn.onclick=()=>openNavigation(s.lat,s.lng);
-infoSheet.classList.add("show");
+openSheet();
 }
 
 function openNavigation(lat,lng){
+localStorage.setItem("lastPlace","1");
 window.location.href=
 `https://www.google.com/maps/dir/?api=1&origin=${userLoc.lat},${userLoc.lng}&destination=${lat},${lng}&travelmode=walking`;
 }
 
 function openAddModal(){
-gpsCoords.textContent=
-`${userLoc.lat.toFixed(5)}, ${userLoc.lng.toFixed(5)}`;
+gpsCoords.textContent=`${userLoc.lat.toFixed(5)}, ${userLoc.lng.toFixed(5)}`;
 addModal.classList.remove("hidden");
 }
 function closeAddModal(e){
