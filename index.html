@@ -2,302 +2,318 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <title>Field Marketer | School Locator</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAyCAW4xYWromZksn2756co9nxAftX1zx8&libraries=places,geometry"></script>
 
 <style>
-  *, *::before, *::after { box-sizing: border-box; }
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden}
+#map{position:fixed;inset:0;width:100vw;height:100svh}
 
-  html, body {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-  }
+/* SEARCH */
+.search-bar{
+  position:fixed;
+  top:env(safe-area-inset-top,24px);
+  margin-top: 5%;
+  left:50%;
+  transform:translateX(-50%);
+  width:min(92vw,520px);
+  z-index:50;
+}
 
-  body { min-height: 100svh; }
+/* ICON RAIL */
+.icon-rail{
+  position:fixed;
+  top:120px;
+  left:12px;
+  z-index:50;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.icon-btn{
+  width:44px;height:44px;border-radius:50%;
+  background:#111;color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;
+}
+.icon-btn.active{background:#22c55e;color:#000}
 
-  #map {
-    width: 100%;
-    height: 65svh;
-    max-width: 100vw;
-    overflow: hidden;
-    touch-action: pan-x pan-y;
-  }
+/* FIXED BOTTOM SHEET */
+.sheet{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  height:320px;               /* 🔒 FIXED HEIGHT */
+  background:#111;
+  color:#fff;
+  border-radius:24px 24px 0 0;
 
-  input, select, button {
-    max-width: 100%;
-    min-width: 0;
-    font-size: 16px;
-  }
+  transform:translateY(100%);
+  transition:transform .25s ease-out; /* 🔒 ONLY VERTICAL */
+  will-change:transform;
 
-  header {
-    width: 100%;
-    max-width: 100vw;
-    overflow: hidden;
-  }
+  z-index:60;
+  display:flex;
+  flex-direction:column;
+}
+
+.sheet.show{
+  transform:translateY(0);
+}
+
+.sheet-handle{
+  width:40px;
+  height:4px;
+  background:#444;
+  border-radius:999px;
+  margin:8px auto;
+}
+
+.sheet-content{
+  flex:1;
+  overflow-y:auto;           /* ✅ CONTENT SCROLLS */
+  overflow-x:hidden;
+  padding:0 16px 16px;
+}
+
+/* PHOTOS */
+.photo-row{
+  display:flex;
+  gap:8px;
+  overflow-x:auto;
+  padding-bottom:4px;
+}
+
+.photo-row img{
+  height:90px;
+  min-width:120px;           /* 🔒 PREVENT JUMP */
+  object-fit:cover;
+  border-radius:12px;
+  background:#222;           /* placeholder */
+}
+
+
+input{font-size:16px;min-width:0}
 </style>
 </head>
 
-<body class="bg-slate-100">
+<body>
 
-<!-- HEADER -->
-<header class="bg-white shadow z-20">
-  <div class="p-3 space-y-2 overflow-hidden">
-
-    <h1 class="font-semibold">📍 School Locator</h1>
-
-    <!-- 🔍 SEARCH ROW (FIXED) -->
-    <div class="flex items-center gap-2 w-full overflow-hidden">
-      <input
-        id="searchInput"
-        type="search"
-        inputmode="search"
-        placeholder="Search nearby schools"
-        class="flex-1 border rounded px-3 py-2 text-sm focus:outline-none"
-      />
-      <button
-        id="searchBtn"
-        class="shrink-0 bg-blue-600 text-white px-3 py-2 rounded text-sm">
-        🔍
-      </button>
-    </div>
-
-    <div class="grid grid-cols-2 gap-2">
-      <select id="distanceFilter" class="border rounded px-2 py-2 text-sm">
-        <option value="1">1 km</option>
-        <option value="3">3 km</option>
-        <option value="5" selected>5 km</option>
-      </select>
-
-      <select id="viewFilter" class="border rounded px-2 py-2 text-sm">
-        <option value="all">All schools</option>
-        <option value="onboarded">Onboarded only</option>
-      </select>
-    </div>
-
-  </div>
-</header>
-
-<!-- MAP -->
 <div id="map"></div>
 
-<!-- INFO SHEET -->
-<div id="infoSheet" class="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow hidden z-30">
-  <div class="p-4 space-y-2">
-    <div class="flex justify-between">
-      <h2 id="infoName" class="font-semibold"></h2>
-      <button onclick="closeInfo()">✕</button>
-    </div>
-    <p id="infoAddress" class="text-xs text-gray-500"></p>
+<!-- SEARCH -->
+<div class="search-bar">
+  <div class="flex items-center bg-[#2A2A2A] rounded-full px-3 py-2 shadow-lg">
+    <span class="text-gray-400 mr-2">📍</span>
+    <input id="searchInput" type="search" placeholder="Search here"
+      class="flex-1 bg-transparent text-white placeholder-gray-400 focus:outline-none"/>
+    <button id="searchBtn" class="text-white ml-2">🔍</button>
+  </div>
+</div>
 
-    <div class="flex gap-2">
-      <a id="callBtn"
-        class="flex-1 bg-green-600 text-white py-2 rounded text-center text-sm">
-        Call
-      </a>
+<!-- ICON RAIL -->
+<div class="icon-rail">
+  <button onclick="setRadius(1000)" class="icon-btn">1km</button>
+  <button onclick="setRadius(3000)" class="icon-btn">3km</button>
+  <button id="onboardBtn" onclick="toggleView()" class="icon-btn">🏫</button>
+  <button onclick="openAddModal()" class="icon-btn">➕</button>
+</div>
+
+<!-- FIXED BOTTOM SHEET -->
+<div id="infoSheet" class="sheet">
+  <div class="sheet-handle"></div>
+
+  <div class="sheet-content space-y-3">
+    <h2 id="infoName" class="text-lg font-semibold"></h2>
+    <p id="infoAddress" class="text-sm text-gray-400"></p>
+
+    <!-- RATING -->
+    <div id="infoRating" class="text-sm text-yellow-400"></div>
+
+    <!-- PHOTOS -->
+    <div id="photoRow" class="photo-row"></div>
+
+    <div class="flex gap-3 pt-2">
       <button id="dirBtn"
-        class="flex-1 bg-blue-600 text-white py-2 rounded text-sm">
+        class="flex-1 bg-blue-500 text-black py-2 rounded-full">
         Directions
       </button>
+      <a id="callBtn"
+        class="flex-1 bg-green-500 text-black py-2 rounded-full text-center">
+        Call
+      </a>
     </div>
   </div>
 </div>
 
-<!-- ADD BUTTON -->
-<button onclick="openAddModal()"
-  class="fixed bottom-6 right-4 bg-black text-white w-14 h-14 rounded-full text-3xl z-40">+</button>
-
 <!-- ADD MODAL -->
-<div id="addModal"
-  onclick="closeAddModal(event)"
-  class="fixed inset-0 bg-black/50 hidden z-50 flex items-end">
-
+<div id="addModal" onclick="closeAddModal(event)"
+  class="fixed inset-0 bg-black/60 hidden z-[70] flex items-end">
   <div class="bg-white w-full rounded-t-2xl p-4 space-y-3">
     <h3 class="font-semibold">Add New School</h3>
-
     <input id="newName" placeholder="School name" class="w-full border px-3 py-2 rounded"/>
     <input id="newContact" placeholder="Contact number" class="w-full border px-3 py-2 rounded"/>
-
-    <p class="text-xs text-gray-500">
-      GPS: <span id="gpsCoords"></span>
-    </p>
-
-    <button onclick="submitNewSchool()"
-      class="w-full bg-blue-600 text-white py-2 rounded">
+    <p class="text-xs text-gray-500">GPS: <span id="gpsCoords"></span></p>
+    <button onclick="submitNewSchool()" class="w-full bg-blue-600 text-white py-2 rounded">
       Send Request
     </button>
   </div>
 </div>
 
 <script>
-let map, userLoc, markers = [];
-let directionsService, directionsRenderer;
+let map,userLoc,markers=[],radius=5000,view="all";
 let placesService;
 
-const portalSchools = [
-  { name:"Alpha Academy", lat:5.669, lng:-0.167, contact:"024000111" }
+const portalSchools=[
+  {name:"Alpha Academy",lat:5.669,lng:-0.167,contact:"024000111"}
 ];
 
-function pulse(marker) {
-  marker.setAnimation(google.maps.Animation.BOUNCE);
-  setTimeout(() => marker.setAnimation(null), 1400);
-}
+function init(){
+navigator.geolocation.getCurrentPosition(p=>{
+userLoc={lat:p.coords.latitude,lng:p.coords.longitude};
 
-function init() {
-  navigator.geolocation.getCurrentPosition(pos => {
-    userLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-
-    map = new google.maps.Map(document.getElementById("map"), {
-      center: userLoc,
-      zoom: 15,
-      gestureHandling: "greedy"
-    });
-
-    directionsService = new google.maps.DirectionsService();
-    directionsRenderer = new google.maps.DirectionsRenderer();
-    directionsRenderer.setMap(map);
-
-    placesService = new google.maps.places.PlacesService(map);
-
-    new google.maps.Marker({
-      position: userLoc,
-      map,
-      icon:{ path:google.maps.SymbolPath.CIRCLE, scale:7, fillColor:"#2563EB", fillOpacity:1 }
-    });
-
-    loadSchools();
-  });
-}
-
-function clearMarkers() {
-  markers.forEach(m => m.setMap(null));
-  markers = [];
-}
-
-function loadSchools() {
-  clearMarkers();
-  directionsRenderer.setDirections({ routes: [] });
-
-  const radius = distanceFilter.value * 1000;
-  const search = searchInput.value.toLowerCase();
-  const view = viewFilter.value;
-
-  portalSchools.forEach(s => {
-    if (view === "onboarded" || view === "all") {
-      if (search && !s.name.toLowerCase().includes(search)) return;
-      const m = new google.maps.Marker({
-        position:{lat:s.lat,lng:s.lng},
-        map,
-        icon:{ path:google.maps.SymbolPath.CIRCLE, scale:7, fillColor:"green", fillOpacity:1 },
-        title:s.name
-      });
-      pulse(m);
-      m.addListener("click", () => showPortal(s));
-      markers.push(m);
-    }
-  });
-
-  if (view === "onboarded") return;
-
-  placesService.nearbySearch(
-    { location:userLoc, radius, keyword:"school" },
-    res => {
-      if (!res) return;
-      res.forEach(p => {
-        if (search && !p.name.toLowerCase().includes(search)) return;
-        const m = new google.maps.Marker({
-          position:p.geometry.location,
-          map,
-          icon:{ path:google.maps.SymbolPath.CIRCLE, scale:7, fillColor:"red", fillOpacity:1 },
-          title:p.name
-        });
-        pulse(m);
-        m.addListener("click", () => loadPlaceDetails(p.place_id));
-        markers.push(m);
-      });
-    }
-  );
-}
-
-function loadPlaceDetails(id) {
-  placesService.getDetails(
-    { placeId:id, fields:["name","formatted_address","formatted_phone_number","geometry"] },
-    p => {
-      infoName.textContent = p.name;
-      infoAddress.textContent = p.formatted_address || "";
-      callBtn.href = p.formatted_phone_number ? "tel:"+p.formatted_phone_number : "#";
-      dirBtn.onclick = () => startDirections(
-        p.geometry.location.lat(),
-        p.geometry.location.lng()
-      );
-      infoSheet.classList.remove("hidden");
-    }
-  );
-}
-
-function showPortal(s) {
-  infoName.textContent = s.name;
-  infoAddress.textContent = "Onboarded school";
-  callBtn.href = "tel:" + s.contact;
-  dirBtn.onclick = () => startDirections(s.lat, s.lng);
-  infoSheet.classList.remove("hidden");
-}
-
-function startDirections(lat,lng){
-  closeInfo();
-  directionsRenderer.setMap(null);
-  directionsRenderer = new google.maps.DirectionsRenderer();
-  directionsRenderer.setMap(map);
-
-  directionsService.route(
-    { origin:userLoc, destination:{lat,lng}, travelMode:"WALKING" },
-    (res, status) => {
-      if (status === "OK") directionsRenderer.setDirections(res);
-      else alert("Directions failed: " + status);
-    }
-  );
-}
-
-function closeInfo(){ infoSheet.classList.add("hidden"); }
-
-function openAddModal(){
-  gpsCoords.textContent = `${userLoc.lat.toFixed(5)}, ${userLoc.lng.toFixed(5)}`;
-  addModal.classList.remove("hidden");
-}
-
-function closeAddModal(e){
-  if(e.target.id === "addModal") addModal.classList.add("hidden");
-}
-
-function submitNewSchool(){
-  if(!newName.value.trim() || !newContact.value.trim()){
-    alert("Fill all fields");
-    return;
-  }
-  console.log("REQUEST:",{
-    name:newName.value,
-    contact:newContact.value,
-    lat:userLoc.lat,
-    lng:userLoc.lng
-  });
-  addModal.classList.add("hidden");
-  newName.value = newContact.value = "";
-}
-
-searchBtn.onclick = loadSchools;
-searchInput.addEventListener("keyup", e => {
-  if (e.key === "Enter") loadSchools();
+map=new google.maps.Map(document.getElementById("map"),{
+  center:userLoc,
+  zoom:15,
+  disableDefaultUI:true,
+  gestureHandling:"greedy"
 });
 
-distanceFilter.onchange = loadSchools;
-viewFilter.onchange = loadSchools;
+placesService=new google.maps.places.PlacesService(map);
 
-window.onload = init;
+new google.maps.Marker({
+  position:userLoc,
+  map,
+  icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:"#3B82F6",fillOpacity:1}
+});
+
+loadSchools();
+});
+}
+
+function setRadius(r){radius=r;loadSchools()}
+function toggleView(){
+  view=view==="all"?"onboarded":"all";
+  document.getElementById("onboardBtn")
+    .classList.toggle("active",view==="onboarded");
+  loadSchools();
+}
+
+function clearMarkers(){
+  markers.forEach(m=>m.setMap(null));
+  markers=[];
+}
+
+function loadSchools(){
+clearMarkers();
+const q=searchInput.value.toLowerCase();
+
+// GREEN
+portalSchools.forEach(s=>{
+  if(view==="onboarded"||view==="all"){
+    if(q&&!s.name.toLowerCase().includes(q))return;
+    const m=new google.maps.Marker({
+      position:{lat:s.lat,lng:s.lng},
+      map,
+      icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:"green",fillOpacity:1}
+    });
+    m.addListener("click",()=>showPortal(s));
+    markers.push(m);
+  }
+});
+if(view==="onboarded")return;
+
+// RED
+placesService.nearbySearch(
+{location:userLoc,radius,keyword:"school"},
+(res)=>{
+(res||[]).forEach(p=>{
+  if(q&&!p.name.toLowerCase().includes(q))return;
+  const m=new google.maps.Marker({
+    position:p.geometry.location,
+    map,
+    icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:"red",fillOpacity:1}
+  });
+  m.addListener("click",()=>loadPlaceDetails(p.place_id));
+  markers.push(m);
+});
+});
+}
+
+function loadPlaceDetails(placeId){
+placesService.getDetails({
+  placeId,
+  fields:[
+    "name",
+    "formatted_address",
+    "formatted_phone_number",
+    "rating",
+    "user_ratings_total",
+    "photos",
+    "geometry"
+  ]
+}, p=>{
+  infoName.textContent=p.name;
+  infoAddress.textContent=p.formatted_address||"";
+  infoRating.innerHTML = p.rating
+    ? `⭐ ${p.rating} (${p.user_ratings_total} reviews)`
+    : "";
+
+  // Photos
+  photoRow.innerHTML="";
+  (p.photos||[]).slice(0,6).forEach(ph=>{
+    const img=document.createElement("img");
+    img.src=ph.getUrl({maxHeight:200});
+    photoRow.appendChild(img);
+  });
+
+  callBtn.href=p.formatted_phone_number?"tel:"+p.formatted_phone_number:"#";
+  dirBtn.onclick=()=>openNavigation(
+    p.geometry.location.lat(),
+    p.geometry.location.lng()
+  );
+
+  infoSheet.classList.add("show");
+});
+}
+
+function showPortal(s){
+infoName.textContent=s.name;
+infoAddress.textContent="Onboarded school";
+infoRating.innerHTML="";
+photoRow.innerHTML="";
+callBtn.href="tel:"+s.contact;
+dirBtn.onclick=()=>openNavigation(s.lat,s.lng);
+infoSheet.classList.add("show");
+}
+
+function openNavigation(lat,lng){
+window.location.href=
+`https://www.google.com/maps/dir/?api=1&origin=${userLoc.lat},${userLoc.lng}&destination=${lat},${lng}&travelmode=walking`;
+}
+
+function openAddModal(){
+gpsCoords.textContent=
+`${userLoc.lat.toFixed(5)}, ${userLoc.lng.toFixed(5)}`;
+addModal.classList.remove("hidden");
+}
+function closeAddModal(e){
+if(e.target.id==="addModal")addModal.classList.add("hidden");
+}
+function submitNewSchool(){
+if(!newName.value||!newContact.value)return alert("Fill all fields");
+console.log({name:newName.value,contact:newContact.value,lat:userLoc.lat,lng:userLoc.lng});
+addModal.classList.add("hidden");
+}
+
+searchBtn.onclick=loadSchools;
+searchInput.onkeyup=e=>e.key==="Enter"&&loadSchools();
+window.onload=init;
 </script>
 
 </body>
