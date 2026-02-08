@@ -1101,6 +1101,12 @@ aside {
     <input class="border w-full p-2 rounded mb-2" placeholder="Location">
     <input class="border w-full p-2 rounded mb-2" placeholder="Region">
     <input class="border w-full p-2 rounded mb-2" placeholder="Contact">
+    <input
+  id="schoolLocation"
+  placeholder="Location / Town"
+  class="w-full border px-3 py-2 rounded"
+/>
+
 
     <div class="flex justify-end gap-2">
       <button onclick="closeAddSchoolModal()">Cancel</button>
@@ -1113,7 +1119,68 @@ aside {
 </div>
 
 
+
+
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+window.fs = {
+  collection,
+  getDocs,
+  addDoc,
+  serverTimestamp
+};
+
+window.startDashboardApp();
+
+
+window.firebaseConfig = {
+  apiKey: "AIzaSyDJxY9b7OecRhf5tmEf76Ak1bR1NW0UtJ0",
+  authDomain: "school-mapper-65c74.firebaseapp.com",
+  projectId: "school-mapper-65c74",
+  storageBucket: "school-mapper-65c74.firebasestorage.app",
+  messagingSenderId: "568455426705",
+  appId: "1:568455426705:web:19aa46f56dddfda0bf0530"
+};
+
+window.firebaseApp = initializeApp(window.firebaseConfig);
+window.db = getFirestore(window.firebaseApp);
+</script>
+
+
 <script>
+
+  async function loadSchoolsFromFirebase() {
+  schools = [];
+
+  const snap = await fs.getDocs(
+    fs.collection(db, "schools")
+  );
+
+  snap.forEach(doc => {
+    schools.push({
+      id: doc.id,
+      ...doc.data(),
+      addedAt: doc.data().addedAt?.toDate
+        ? doc.data().addedAt.toDate().toISOString()
+        : new Date().toISOString()
+    });
+  });
+
+  renderSchools();
+  initDashboard();
+  renderDashboardCharts();
+}
+
 /* =====================================================
    GLOBAL STATE
 ===================================================== */
@@ -1181,100 +1248,103 @@ function renderActivityLog(){
     });
 }
 
-let schools = [
-{
-  id: "sch_001",
-  name: "Alpha Academy",
-  region: "Greater Accra",
-  contact: "024000111",
-  addedAt: "2021-01-01",
-
-  mock: 12,
-  terminal: 9,
-
-  exams: [
-    {
-      id: "ex_001",
-      type: "Mock",
-      name: "BECE Mock 1",
-      date: "2024-11-15",
-      enrollment: 120
-    },
-    {
-      id: "ex_002",
-      type: "Terminal",
-      name: "End of Term 1",
-      date: "2024-12-10",
-      enrollment: 110
-    }
-  ],
-
-  history: []
-},
+let schools = [];
 
 
-  {
-    id: "sch_002",
-    name: "Omega Academy",
-    region: "Western",
-    contact: "024000111",
-    addedAt: "2025-01-01",
-    mock: 70,
-    terminal: 50
-  },
+// let schools = [
+// {
+//   id: "sch_001",
+//   name: "Alpha Academy",
+//   region: "Greater Accra",
+//   contact: "024000111",
+//   addedAt: "2021-01-01",
 
-    {
-    id: "sch_003",
-    name: "St John Academy",
-    region: "Eastern",
-    contact: "024000111",
-    addedAt: "2023-09-01",
-    mock: 50,
-    terminal: 40
-  },
+//   mock: 12,
+//   terminal: 9,
 
-   {
-    id: "sch_004",
-    name: "Begrat Prep",
-    region: "Volta",
-    contact: "024000111",
-    addedAt: "2012-05-01",
-    mock: 1000,
-    terminal: 400
-  },
+//   exams: [
+//     {
+//       id: "ex_001",
+//       type: "Mock",
+//       name: "BECE Mock 1",
+//       date: "2024-11-15",
+//       enrollment: 120
+//     },
+//     {
+//       id: "ex_002",
+//       type: "Terminal",
+//       name: "End of Term 1",
+//       date: "2024-12-10",
+//       enrollment: 110
+//     }
+//   ],
 
- {
-    id: "sch_005",
-    name: "Justis School",
-    region: "Northern",
-    contact: "024000111",
-    addedAt: "2017-08-01",
-    mock: 500,
-    terminal: 370
-  },
+//   history: []
+// },
 
-   {
-    id: "sch_006",
-    name: "Apam Senior High School",
-    region: "Central",
-    contact: "024000111",
-    addedAt: "2024-08-01",
-    mock: 133,
-    terminal: 30
-  },
 
-     {
-    id: "sch_007",
-    name: "Living Grace Prep",
-    region: "Oti",
-    contact: "024000111",
-    addedAt: "2025-08-01",
-    mock: 233,
-    terminal: 30
-  },
+//   {
+//     id: "sch_002",
+//     name: "Omega Academy",
+//     region: "Western",
+//     contact: "024000111",
+//     addedAt: "2025-01-01",
+//     mock: 70,
+//     terminal: 50
+//   },
+
+//     {
+//     id: "sch_003",
+//     name: "St John Academy",
+//     region: "Eastern",
+//     contact: "024000111",
+//     addedAt: "2023-09-01",
+//     mock: 50,
+//     terminal: 40
+//   },
+
+//    {
+//     id: "sch_004",
+//     name: "Begrat Prep",
+//     region: "Volta",
+//     contact: "024000111",
+//     addedAt: "2012-05-01",
+//     mock: 1000,
+//     terminal: 400
+//   },
+
+//  {
+//     id: "sch_005",
+//     name: "Justis School",
+//     region: "Northern",
+//     contact: "024000111",
+//     addedAt: "2017-08-01",
+//     mock: 500,
+//     terminal: 370
+//   },
+
+//    {
+//     id: "sch_006",
+//     name: "Apam Senior High School",
+//     region: "Central",
+//     contact: "024000111",
+//     addedAt: "2024-08-01",
+//     mock: 133,
+//     terminal: 30
+//   },
+
+//      {
+//     id: "sch_007",
+//     name: "Living Grace Prep",
+//     region: "Oti",
+//     contact: "024000111",
+//     addedAt: "2025-08-01",
+//     mock: 233,
+//     terminal: 30
+//   },
 
   
-];
+// ];
 
 
 let currentPage = 1;
@@ -1633,10 +1703,7 @@ function processCSV() {
 /* =====================================================
    INIT
 ===================================================== */
-renderSchools();
-initDashboard();
-renderDashboardCharts();
-
+loadSchoolsFromFirebase();
 
 
 let activeSchoolIndex = null;
@@ -2052,6 +2119,72 @@ function renderSchoolExams() {
     `;
   });
 }
+let isSavingSchool = false;
+
+async function saveSchoolFromDashboard(event) {
+  if (isSavingSchool) return;
+  isSavingSchool = true;
+
+  const btn = event?.target;
+  if (btn) btn.disabled = true;
+
+  const inputs = document
+    .getElementById("addSchoolModal")
+    .querySelectorAll("input");
+
+  const name = inputs[0].value.trim();
+  const location = inputs[1].value.trim();
+  const region = inputs[2].value.trim();
+  const contact = inputs[3].value.trim();
+
+  if (!name || !location || !region || !contact) {
+    toast("All fields are required");
+    resetSave(btn);
+    return;
+  }
+
+  if (!isValidGhanaNumber(contact)) {
+    toast("Invalid Ghanaian phone number");
+    resetSave(btn);
+    return;
+  }
+
+  try {
+    await fs.addDoc(fs.collection(db, "schools"), {
+      name,
+      region,
+      location,
+      contact,
+      mock: 0,
+      terminal: 0,
+      addedAt: fs.serverTimestamp()
+    });
+
+    inputs.forEach(i => (i.value = ""));
+    closeAddSchoolModal();
+    toast("School saved");
+    loadSchoolsFromFirebase(); // 🔥 refresh table + KPIs
+
+  } catch (err) {
+    console.error(err);
+    toast("Failed to save school");
+  }
+
+  resetSave(btn);
+}
+
+
+function resetButton(btn) {
+  btn.disabled = false;
+  btn.innerText = "Save School";
+  isSavingSchool = false;
+}
+
+function isValidGhanaNumber(phone) {
+  const ghRegex = /^(?:\+233|233|0)(24|54|55|59|20|50|26|56|27|57)\d{7}$/;
+  return ghRegex.test(phone);
+}
+
 
 
 

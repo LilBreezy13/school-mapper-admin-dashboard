@@ -6,7 +6,12 @@
 <title>Field Marketer | School Locator</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAyCAW4xYWromZksn2756co9nxAftX1zx8&libraries=places,geometry"></script>
+<script
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAyCAW4xYWromZksn2756co9nxAftX1zx8&libraries=places,geometry&callback=init"
+  async
+  defer>
+</script>
+
 
 <style>
 *,*::before,*::after{box-sizing:border-box}
@@ -162,156 +167,290 @@ input{font-size:16px;min-width:0}
   </div>
 </div>
 
+<!-- FIREBASE CORE -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
 <script>
-let map,userLoc,markers=[],radius=5000,view="all";
-let placesService,activePlace=null;
-let startY=0,dragging=false;
+/* =========================
+   FIREBASE INIT
+========================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyDJxY9b7OecRhf5tmEf76Ak1bR1NW0UtJ0",
+  authDomain: "school-mapper-65c74.firebaseapp.com",
+  projectId: "school-mapper-65c74",
+  storageBucket: "school-mapper-65c74.firebasestorage.app",
+  messagingSenderId: "568455426705",
+  appId: "1:568455426705:web:19aa46f56dddfda0bf0530",
+  measurementId: "G-ZRXX104WC1"
+};
 
-const portalSchools=[
-  {name:"Alpha Academy",lat:5.669,lng:-0.167,contact:"024000111"}
-];
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
+/* =========================
+   GLOBAL STATE
+========================= */
+let map, userLoc, markers = [], radius = 5000, view = "all";
+let placesService, activePlace = null;
+let startY = 0, dragging = false;
+
+/* onboarded schools from Firestore */
+let portalSchools = [];
+
+/* =========================
+   INIT MAP
+========================= */
 function init(){
-navigator.geolocation.getCurrentPosition(p=>{
-userLoc={lat:p.coords.latitude,lng:p.coords.longitude};
+  navigator.geolocation.getCurrentPosition(p=>{
+    userLoc = {
+      lat: p.coords.latitude,
+      lng: p.coords.longitude
+    };
 
-map=new google.maps.Map(document.getElementById("map"),{
-  center:userLoc,
-  zoom:15,
-  disableDefaultUI:true,
-  gestureHandling:"greedy"
-});
+    map = new google.maps.Map(document.getElementById("map"),{
+      center: userLoc,
+      zoom: 15,
+      disableDefaultUI: true,
+      gestureHandling: "greedy"
+    });
 
-placesService=new google.maps.places.PlacesService(map);
+    placesService = new google.maps.places.PlacesService(map);
 
-new google.maps.Marker({
-  position:userLoc,map,
-  icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:"#3B82F6",fillOpacity:1}
-});
+    new google.maps.Marker({
+      position: userLoc,
+      map,
+      icon:{
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 7,
+        fillColor: "#3B82F6",
+        fillOpacity: 1
+      }
+    });
 
-loadSchools();
-});
+    loadPortalSchools();   // 🔥 FIREBASE
+  });
 }
 
+/* =========================
+   FIREBASE LOAD
+========================= */
+async function loadPortalSchools(){
+  const snap = await db
+    .collection("schools")
+    .where("status", "==", "onboarded")
+    .get();
+
+  portalSchools = snap.docs.map(d => ({
+    id: d.id,
+    ...d.data()
+  }));
+
+  loadSchools();
+}
+
+/* =========================
+   BOTTOM SHEET
+========================= */
 function openSheet(){
   infoSheet.classList.add("show");
-  map.setOptions({gestureHandling:"cooperative"});
+  map.setOptions({ gestureHandling: "cooperative" });
 }
 
 function closeSheet(){
   infoSheet.classList.remove("show");
-  map.setOptions({gestureHandling:"greedy"});
+  map.setOptions({ gestureHandling: "greedy" });
 }
 
-sheetCloseBtn.onclick=closeSheet;
+sheetCloseBtn.onclick = closeSheet;
 
-infoSheet.addEventListener("touchstart",e=>{
-  startY=e.touches[0].clientY;
-  dragging=true;
+infoSheet.addEventListener("touchstart", e=>{
+  startY = e.touches[0].clientY;
+  dragging = true;
 });
-infoSheet.addEventListener("touchmove",e=>{
-  if(!dragging)return;
-  if(e.touches[0].clientY-startY>80){
+infoSheet.addEventListener("touchmove", e=>{
+  if(!dragging) return;
+  if(e.touches[0].clientY - startY > 80){
     closeSheet();
-    dragging=false;
+    dragging = false;
   }
 });
-infoSheet.addEventListener("touchend",()=>dragging=false);
+infoSheet.addEventListener("touchend", ()=>dragging=false);
 
-function setRadius(r){radius=r;loadSchools()}
-function toggleView(){
-view=view==="all"?"onboarded":"all";
-onboardBtn.classList.toggle("active",view==="onboarded");
-loadSchools();
+/* =========================
+   FILTER CONTROLS
+========================= */
+function setRadius(r){
+  radius = r;
+  loadSchools();
 }
 
-function clearMarkers(){markers.forEach(m=>m.setMap(null));markers=[]}
+function toggleView(){
+  view = view === "all" ? "onboarded" : "all";
+  onboardBtn.classList.toggle("active", view === "onboarded");
+  loadSchools();
+}
+
+/* =========================
+   MARKERS
+========================= */
+function clearMarkers(){
+  markers.forEach(m=>m.setMap(null));
+  markers = [];
+}
 
 function loadSchools(){
-clearMarkers();
-const q=searchInput.value.toLowerCase();
+  clearMarkers();
+  const q = searchInput.value.toLowerCase();
 
-// GREEN
-portalSchools.forEach(s=>{
-if(view==="onboarded"||view==="all"){
-if(q&&!s.name.toLowerCase().includes(q))return;
-const m=new google.maps.Marker({
-position:{lat:s.lat,lng:s.lng},map,
-icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:"green",fillOpacity:1}
-});
-m.addListener("click",()=>showPortal(s));
-markers.push(m);
-}});
+  /* GREEN – FIREBASE */
+  portalSchools.forEach(s=>{
+    if(view==="onboarded" || view==="all"){
+      if(q && !s.name.toLowerCase().includes(q)) return;
 
-if(view==="onboarded")return;
+      const m = new google.maps.Marker({
+        position:{ lat:s.lat, lng:s.lng },
+        map,
+        icon:{
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 7,
+          fillColor: "green",
+          fillOpacity: 1
+        }
+      });
 
-// RED
-placesService.nearbySearch({location:userLoc,radius,keyword:"school"},res=>{
-(res||[]).forEach(p=>{
-if(q&&!p.name.toLowerCase().includes(q))return;
-const m=new google.maps.Marker({
-position:p.geometry.location,map,
-icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:"red",fillOpacity:1}
-});
-m.addListener("click",()=>loadPlaceDetails(p.place_id));
-markers.push(m);
-});
-});
+      m.addListener("click", ()=>showPortal(s));
+      markers.push(m);
+    }
+  });
+
+  if(view==="onboarded") return;
+
+  /* RED – GOOGLE */
+  placesService.nearbySearch(
+    { location:userLoc, radius, keyword:"school" },
+    res=>{
+      (res||[]).forEach(p=>{
+        if(q && !p.name.toLowerCase().includes(q)) return;
+
+        const m = new google.maps.Marker({
+          position:p.geometry.location,
+          map,
+          icon:{
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 7,
+            fillColor: "red",
+            fillOpacity: 1
+          }
+        });
+
+        m.addListener("click", ()=>loadPlaceDetails(p.place_id));
+        markers.push(m);
+      });
+    }
+  );
 }
 
+/* =========================
+   PLACE DETAILS
+========================= */
 function loadPlaceDetails(placeId){
-placesService.getDetails({
-placeId,
-fields:["name","formatted_address","formatted_phone_number","rating","user_ratings_total","photos","geometry"]
-},p=>{
-activePlace=p;
-infoName.textContent=p.name;
-infoAddress.textContent=p.formatted_address||"";
-infoRating.innerHTML=p.rating?`⭐ ${p.rating} (${p.user_ratings_total})`:"";
-photoRow.innerHTML="";
-(p.photos||[]).slice(0,6).forEach(ph=>{
-const img=document.createElement("img");
-img.src=ph.getUrl({maxHeight:200});
-photoRow.appendChild(img);
-});
-callBtn.href=p.formatted_phone_number?"tel:"+p.formatted_phone_number:"#";
-dirBtn.onclick=()=>openNavigation(p.geometry.location.lat(),p.geometry.location.lng());
-openSheet();
-});
+  placesService.getDetails({
+    placeId,
+    fields:[
+      "name",
+      "formatted_address",
+      "formatted_phone_number",
+      "rating",
+      "user_ratings_total",
+      "photos",
+      "geometry"
+    ]
+  }, p=>{
+    activePlace = p;
+
+    infoName.textContent = p.name;
+    infoAddress.textContent = p.formatted_address || "";
+    infoRating.innerHTML = p.rating
+      ? `⭐ ${p.rating} (${p.user_ratings_total})`
+      : "";
+
+    photoRow.innerHTML = "";
+    (p.photos||[]).slice(0,6).forEach(ph=>{
+      const img = document.createElement("img");
+      img.src = ph.getUrl({ maxHeight:200 });
+      photoRow.appendChild(img);
+    });
+
+    callBtn.href = p.formatted_phone_number
+      ? "tel:"+p.formatted_phone_number
+      : "#";
+
+    dirBtn.onclick = ()=>openNavigation(
+      p.geometry.location.lat(),
+      p.geometry.location.lng()
+    );
+
+    openSheet();
+  });
 }
 
+/* =========================
+   PORTAL SCHOOL
+========================= */
 function showPortal(s){
-infoName.textContent=s.name;
-infoAddress.textContent="Onboarded school";
-infoRating.innerHTML="";
-photoRow.innerHTML="";
-callBtn.href="tel:"+s.contact;
-dirBtn.onclick=()=>openNavigation(s.lat,s.lng);
-openSheet();
+  infoName.textContent = s.name;
+  infoAddress.textContent = s.address || "Onboarded school";
+  infoRating.innerHTML = "";
+  photoRow.innerHTML = "";
+  callBtn.href = s.contact ? "tel:"+s.contact : "#";
+  dirBtn.onclick = ()=>openNavigation(s.lat, s.lng);
+  openSheet();
 }
 
+/* =========================
+   NAVIGATION
+========================= */
 function openNavigation(lat,lng){
-localStorage.setItem("lastPlace","1");
-window.location.href=
-`https://www.google.com/maps/dir/?api=1&origin=${userLoc.lat},${userLoc.lng}&destination=${lat},${lng}&travelmode=walking`;
+  localStorage.setItem("lastPlace","1");
+  window.location.href =
+    `https://www.google.com/maps/dir/?api=1&origin=${userLoc.lat},${userLoc.lng}&destination=${lat},${lng}&travelmode=walking`;
 }
 
-function openAddModal(){
-gpsCoords.textContent=`${userLoc.lat.toFixed(5)}, ${userLoc.lng.toFixed(5)}`;
-addModal.classList.remove("hidden");
-}
-function closeAddModal(e){
-if(e.target.id==="addModal")addModal.classList.add("hidden");
-}
-function submitNewSchool(){
-if(!newName.value||!newContact.value)return alert("Fill all fields");
-console.log({name:newName.value,contact:newContact.value,lat:userLoc.lat,lng:userLoc.lng});
-addModal.classList.add("hidden");
+/* =========================
+   ADD SCHOOL REQUEST
+========================= */
+async function submitNewSchool(){
+  if(!newName.value || !newContact.value){
+    alert("Fill all fields");
+    return;
+  }
+
+  await db.collection("requests").add({
+    name: newName.value,
+    contact: newContact.value,
+    lat: userLoc.lat,
+    lng: userLoc.lng,
+    status: "pending",
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  newName.value = "";
+  newContact.value = "";
+  addModal.classList.add("hidden");
+  alert("Request sent to dashboard");
 }
 
-searchBtn.onclick=loadSchools;
-searchInput.onkeyup=e=>e.key==="Enter"&&loadSchools();
-window.onload=init;
+/* =========================
+   SEARCH
+========================= */
+searchBtn.onclick = loadSchools;
+searchInput.onkeyup = e=>e.key==="Enter" && loadSchools();
+
+/* =========================
+   BOOT
+========================= */
+// window.onload = init;
 </script>
 
 </body>
